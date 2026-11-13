@@ -99,6 +99,16 @@
       <ul id="storico" class="lista"></ul>
       <p id="storico-vuoto" class="nota">Nessun allenamento salvato.</p>
       <p id="storico-aiuto" class="nota">Tocca un allenamento per eliminarlo.</p>
+
+      <!-- Backup -->
+      <h2 class="sezione">Backup</h2>
+      <div class="card centro">
+        <button id="btn-esporta" class="btn-secondario">Esporta backup</button>
+        <button id="btn-importa" class="btn-secondario">Importa backup</button>
+        <input type="file" id="file-backup" accept=".json,application/json" hidden>
+        <span id="ultimo-backup" class="testo-sec"></span>
+      </div>
+      <p id="esito-backup" class="esito"></p>
     </section>
   </main>
 

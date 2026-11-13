@@ -52,6 +52,13 @@ function formattaOra(iso) {
   return new Date(iso).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
 }
 
+// "2026-11-13" (data locale, per i nomi dei file)
+function dataPerNomeFile(d) {
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const gg = String(d.getDate()).padStart(2, '0');
+  return d.getFullYear() + '-' + mm + '-' + gg;
+}
+
 // Lunedì della settimana corrente alle 00:00
 function inizioSettimana() {
   const d = new Date();
@@ -311,5 +318,102 @@ formSalva.addEventListener('submit', evento => {
 });
 
 aggiornaPalestra();
-   // Registra il service worker per il funzionamento offline
-   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+
+
+// ===================================================
+// Backup: esporta e importa
+// ===================================================
+
+const CHIAVE_ULTIMO_BACKUP = 'ultimoBackup';
+const ID_APP = 'routine-giosambo';
+
+const elUltimoBackup = document.getElementById('ultimo-backup');
+const campoFileBackup = document.getElementById('file-backup');
+const esitoBackup = document.getElementById('esito-backup');
+
+function mostraUltimoBackup() {
+  const ultimo = localStorage.getItem(CHIAVE_ULTIMO_BACKUP);
+  elUltimoBackup.textContent = ultimo
+    ? 'Ultimo backup: ' + formattaData(ultimo) + ' alle ' + formattaOra(ultimo)
+    : 'Nessun backup ancora esportato.';
+}
+
+// Esporta: crea il file e apre il foglio di condivisione di iOS
+document.getElementById('btn-esporta').addEventListener('click', async () => {
+  const adesso = new Date();
+  const backup = {
+    app: ID_APP,
+    versione: 1,
+    esportatoIl: adesso.toISOString(),
+    dati: {
+      allenamenti: leggiJSON(CHIAVE_ALLENAMENTI, [])
+    }
+  };
+  const nomeFile = 'routine-backup-' + dataPerNomeFile(adesso) + '.json';
+  const file = new File([JSON.stringify(backup, null, 2)], nomeFile, { type: 'application/json' });
+
+  try {
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], title: 'Backup Routine' });
+    } else {
+      // Alternativa per i browser senza condivisione di file (es. PC): scarica il file
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(file);
+      link.download = nomeFile;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+    }
+    localStorage.setItem(CHIAVE_ULTIMO_BACKUP, adesso.toISOString());
+    esitoBackup.textContent = 'Backup esportato.';
+    mostraUltimoBackup();
+  } catch (errore) {
+    // AbortError = hai chiuso il foglio di condivisione senza scegliere nulla
+    if (errore.name !== 'AbortError') esitoBackup.textContent = 'Esportazione non riuscita.';
+  }
+});
+
+// Importa: apre la scelta del file
+document.getElementById('btn-importa').addEventListener('click', () => {
+  campoFileBackup.click();
+});
+
+campoFileBackup.addEventListener('change', async () => {
+  const file = campoFileBackup.files[0];
+  campoFileBackup.value = ''; // permette di scegliere di nuovo lo stesso file
+  if (!file) return;
+
+  try {
+    const backup = JSON.parse(await file.text());
+    if (backup.app !== ID_APP || !backup.dati || !Array.isArray(backup.dati.allenamenti)) {
+      throw new Error('formato non valido');
+    }
+
+    // Aggiunge solo gli allenamenti validi che non sono già presenti
+    const attuali = leggiJSON(CHIAVE_ALLENAMENTI, []);
+    const idPresenti = new Set(attuali.map(a => a.id));
+    const nuovi = backup.dati.allenamenti.filter(a =>
+      a && a.id && typeof a.nome === 'string' && a.inizio &&
+      typeof a.durataMs === 'number' && !idPresenti.has(a.id)
+    );
+
+    if (nuovi.length === 0) {
+      esitoBackup.textContent = 'Nessun allenamento nuovo nel backup.';
+      return;
+    }
+    if (!confirm('Importare ' + nuovi.length + ' allenamenti dal backup del ' + formattaData(backup.esportatoIl) + '?')) {
+      return;
+    }
+
+    scriviJSON(CHIAVE_ALLENAMENTI, attuali.concat(nuovi));
+    esitoBackup.textContent = 'Importati ' + nuovi.length + ' allenamenti.';
+    aggiornaPalestra();
+  } catch {
+    esitoBackup.textContent = 'File non valido: scegli un backup di Routine (.json).';
+  }
+});
+
+mostraUltimoBackup();
+
+
+// Registra il service worker per il funzionamento offline
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
