@@ -1,0 +1,85 @@
+/* Colori e misure comuni */
+:root {
+  --sfondo: #0f0f10;
+  --superficie: #1c1c1e;
+  --bordo: #2c2c2e;
+  --testo: #ffffff;
+  --testo-secondario: #8e8e93;
+  --accento: #2f80ed;
+  --altezza-tabbar: 64px;
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body {
+  margin: 0;
+  background: var(--sfondo);
+  color: var(--testo);
+  font-family: -apple-system, system-ui, sans-serif;
+}
+
+/* Spazio per la barra di stato in alto e la tabbar in basso */
+main {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: calc(var(--altezza-tabbar) + env(safe-area-inset-bottom));
+  min-height: 100vh;
+}
+
+/* Le viste sono nascoste, si vede solo quella attiva */
+.vista { display: none; }
+.vista.attiva { display: block; }
+
+.titolo {
+  padding: 16px 20px 8px;
+}
+.titolo h1 {
+  margin: 0;
+  font-size: 32px;
+  font-weight: 700;
+}
+
+.vuoto {
+  margin: 24px 20px;
+  padding: 32px 20px;
+  background: var(--superficie);
+  border-radius: 14px;
+  color: var(--testo-secondario);
+  text-align: center;
+}
+
+/* Barra delle schede */
+.tabbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  height: calc(var(--altezza-tabbar) + env(safe-area-inset-bottom));
+  padding-bottom: env(safe-area-inset-bottom);
+  background: var(--superficie);
+  border-top: 1px solid var(--bordo);
+}
+
+.tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  background: none;
+  border: none;
+  color: var(--testo-secondario);
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.tab.attiva {
+  color: var(--accento);
+}
