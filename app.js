@@ -52,6 +52,21 @@ function formattaOra(iso) {
   return new Date(iso).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
 }
 
+// Lunedì della settimana corrente alle 00:00
+function inizioSettimana() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  const giorniDaLunedi = (d.getDay() + 6) % 7; // getDay: 0 = domenica, 1 = lunedì
+  d.setDate(d.getDate() - giorniDaLunedi);
+  return d;
+}
+
+// Giorno 1 del mese corrente alle 00:00
+function inizioMese() {
+  const d = new Date();
+  return new Date(d.getFullYear(), d.getMonth(), 1);
+}
+
 
 // ===================================================
 // Navigazione tra le schede in basso
@@ -121,6 +136,11 @@ const campoNota = document.getElementById('allenamento-nota');
 const elNomiAll = document.getElementById('nomi-allenamenti');
 const elStorico = document.getElementById('storico');
 const elStoricoVuoto = document.getElementById('storico-vuoto');
+const elStoricoAiuto = document.getElementById('storico-aiuto');
+const elStatSettNum = document.getElementById('stat-sett-num');
+const elStatSettTempo = document.getElementById('stat-sett-tempo');
+const elStatMeseNum = document.getElementById('stat-mese-num');
+const elStatMedia = document.getElementById('stat-media');
 
 let intervalloCronometro = null;
 
@@ -150,16 +170,36 @@ function aggiornaPalestra() {
       formattaOra(inCorso.inizio) + ' → ' + formattaOra(inCorso.fine) + ' · ' + formattaDurata(durata);
   }
 
-  mostraStorico();
+  const allenamenti = leggiJSON(CHIAVE_ALLENAMENTI, []);
+  mostraRiepilogo(allenamenti);
+  mostraStorico(allenamenti);
+}
+
+// Calcola e mostra i 4 numeri del riepilogo
+function mostraRiepilogo(allenamenti) {
+  const settimana = inizioSettimana();
+  const mese = inizioMese();
+
+  const diSettimana = allenamenti.filter(a => new Date(a.inizio) >= settimana);
+  const diMese = allenamenti.filter(a => new Date(a.inizio) >= mese);
+
+  const tempoSettimana = diSettimana.reduce((somma, a) => somma + a.durataMs, 0);
+  const tempoMese = diMese.reduce((somma, a) => somma + a.durataMs, 0);
+  const media = diMese.length > 0 ? tempoMese / diMese.length : 0;
+
+  elStatSettNum.textContent = diSettimana.length;
+  elStatSettTempo.textContent = formattaDurata(tempoSettimana);
+  elStatMeseNum.textContent = diMese.length;
+  elStatMedia.textContent = formattaDurata(media);
 }
 
 // Disegna l'elenco degli allenamenti salvati, dal più recente
-function mostraStorico() {
-  const allenamenti = leggiJSON(CHIAVE_ALLENAMENTI, []);
+function mostraStorico(allenamenti) {
   const ordinati = allenamenti.slice().sort((a, b) => b.inizio.localeCompare(a.inizio));
 
   elStorico.innerHTML = '';
   elStoricoVuoto.hidden = ordinati.length > 0;
+  elStoricoAiuto.hidden = ordinati.length === 0;
 
   ordinati.forEach(a => {
     const riga = document.createElement('li');
@@ -186,6 +226,10 @@ function mostraStorico() {
     destra.textContent = formattaDurata(a.durataMs);
 
     riga.append(sinistra, destra);
+
+    // Tocco sulla riga: chiede conferma ed elimina
+    riga.addEventListener('click', () => eliminaAllenamento(a));
+
     elStorico.append(riga);
   });
 
@@ -196,6 +240,15 @@ function mostraStorico() {
     opzione.value = nome;
     elNomiAll.append(opzione);
   });
+}
+
+function eliminaAllenamento(allenamento) {
+  const descrizione = '"' + allenamento.nome + '" del ' + formattaData(allenamento.inizio);
+  if (!confirm('Eliminare ' + descrizione + '?')) return;
+
+  const rimanenti = leggiJSON(CHIAVE_ALLENAMENTI, []).filter(a => a.id !== allenamento.id);
+  scriviJSON(CHIAVE_ALLENAMENTI, rimanenti);
+  aggiornaPalestra();
 }
 
 // Inizia: salva l'ora di inizio e apre Hevy

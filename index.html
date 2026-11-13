@@ -73,10 +73,32 @@
         <button type="button" id="btn-riprendi" class="btn-testo">Torna all'allenamento</button>
       </form>
 
+      <!-- Riepilogo numerico -->
+      <h2 class="sezione">Riepilogo</h2>
+      <div class="griglia-stat">
+        <div class="stat">
+          <span id="stat-sett-num" class="stat-valore">0</span>
+          <span class="stat-etichetta">Allenamenti questa settimana</span>
+        </div>
+        <div class="stat">
+          <span id="stat-sett-tempo" class="stat-valore">0 min</span>
+          <span class="stat-etichetta">Tempo questa settimana</span>
+        </div>
+        <div class="stat">
+          <span id="stat-mese-num" class="stat-valore">0</span>
+          <span class="stat-etichetta">Allenamenti questo mese</span>
+        </div>
+        <div class="stat">
+          <span id="stat-media" class="stat-valore">0 min</span>
+          <span class="stat-etichetta">Durata media del mese</span>
+        </div>
+      </div>
+
       <!-- Storico -->
       <h2 class="sezione">Storico</h2>
       <ul id="storico" class="lista"></ul>
       <p id="storico-vuoto" class="nota">Nessun allenamento salvato.</p>
+      <p id="storico-aiuto" class="nota">Tocca un allenamento per eliminarlo.</p>
     </section>
   </main>
 

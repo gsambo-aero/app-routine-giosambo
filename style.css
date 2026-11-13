@@ -160,6 +160,31 @@ main {
   font-weight: 600;
 }
 
+/* Riquadri del riepilogo (griglia 2 x 2) */
+.griglia-stat {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 0 20px;
+}
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px;
+  background: var(--superficie);
+  border-radius: 14px;
+}
+.stat-valore {
+  font-size: 24px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.stat-etichetta {
+  font-size: 13px;
+  color: var(--testo-secondario);
+}
+
 /* Messaggi */
 .esito {
   margin: 0 20px;
@@ -192,8 +217,10 @@ main {
   gap: 12px;
   padding: 12px 16px;
   border-bottom: 1px solid var(--bordo);
+  cursor: pointer;
 }
 .riga:last-child { border-bottom: none; }
+.riga:active { background: var(--superficie-2); }
 .riga-titolo {
   font-size: 17px;
   font-weight: 600;
