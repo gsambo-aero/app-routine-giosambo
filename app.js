@@ -59,6 +59,14 @@ function dataPerNomeFile(d) {
   return d.getFullYear() + '-' + mm + '-' + gg;
 }
 
+// "2026-11-13T18:05": il formato che vogliono i campi data e ora del modulo (ora locale)
+function perCampoDataOra(iso) {
+  const d = new Date(iso);
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mi = String(d.getMinutes()).padStart(2, '0');
+  return dataPerNomeFile(d) + 'T' + hh + ':' + mi;
+}
+
 // Lunedì della settimana corrente alle 00:00
 function inizioSettimana() {
   const d = new Date();
@@ -74,7 +82,7 @@ function inizioMese() {
   return new Date(d.getFullYear(), d.getMonth(), 1);
 }
 
-// Crea una riga di elenco con titolo, sottotitolo e (opzionale) testo a destra
+// Crea una riga di elenco con titolo e sottotitolo
 function creaRiga(titoloTesto, sottoTesto) {
   const riga = document.createElement('li');
   riga.className = 'riga';
@@ -319,8 +327,8 @@ function mostraStorico(allenamenti) {
     destra.textContent = formattaDurata(a.durataMs);
     riga.append(destra);
 
-    // Tocco sulla riga: chiede conferma ed elimina
-    riga.addEventListener('click', () => eliminaAllenamento(a));
+    // Tocco sulla riga: apre il pannello di modifica
+    riga.addEventListener('click', () => apriModifica(a));
 
     elStorico.append(riga);
   });
@@ -332,15 +340,6 @@ function mostraStorico(allenamenti) {
     opzione.value = nome;
     elNomiAll.append(opzione);
   });
-}
-
-function eliminaAllenamento(allenamento) {
-  const descrizione = '"' + allenamento.nome + '" del ' + formattaData(allenamento.inizio);
-  if (!confirm('Eliminare ' + descrizione + '?')) return;
-
-  const rimanenti = leggiJSON(CHIAVE_ALLENAMENTI, []).filter(a => a.id !== allenamento.id);
-  scriviJSON(CHIAVE_ALLENAMENTI, rimanenti);
-  aggiornaPalestra();
 }
 
 // Inizia: salva l'ora di inizio e apre Hevy
@@ -402,11 +401,90 @@ formSalva.addEventListener('submit', evento => {
   aggiornaPalestra();
 });
 
+
+// ---------- Modifica di un allenamento salvato ----------
+
+const veloModifica = document.getElementById('velo-modifica');
+const formModifica = document.getElementById('form-modifica');
+const campoModNome = document.getElementById('mod-nome');
+const campoModInizio = document.getElementById('mod-inizio');
+const campoModFine = document.getElementById('mod-fine');
+const campoModNota = document.getElementById('mod-nota');
+const esitoModifica = document.getElementById('mod-esito');
+
+let idInModifica = null;
+
+function apriModifica(allenamento) {
+  idInModifica = allenamento.id;
+  campoModNome.value = allenamento.nome;
+  campoModInizio.value = perCampoDataOra(allenamento.inizio);
+  campoModFine.value = perCampoDataOra(allenamento.fine);
+  campoModNota.value = allenamento.nota || '';
+  esitoModifica.textContent = '';
+  veloModifica.hidden = false;
+}
+
+function chiudiModifica() {
+  veloModifica.hidden = true;
+  idInModifica = null;
+}
+
+formModifica.addEventListener('submit', evento => {
+  evento.preventDefault();
+  const nome = campoModNome.value.trim();
+  const inizio = new Date(campoModInizio.value); // interpretato come ora locale
+  const fine = new Date(campoModFine.value);
+
+  if (!nome) {
+    esitoModifica.textContent = 'Il nome non può essere vuoto.';
+    return;
+  }
+  if (isNaN(inizio) || isNaN(fine)) {
+    esitoModifica.textContent = 'Inserisci data e ora di inizio e fine.';
+    return;
+  }
+  if (fine <= inizio) {
+    esitoModifica.textContent = "La fine deve essere dopo l'inizio.";
+    return;
+  }
+
+  // Aggiorna solo i campi modificati, lasciando intatti gli altri dati dell'allenamento
+  const allenamenti = leggiJSON(CHIAVE_ALLENAMENTI, []).map(a => {
+    if (a.id !== idInModifica) return a;
+    return {
+      ...a,
+      nome: nome,
+      inizio: inizio.toISOString(),
+      fine: fine.toISOString(),
+      durataMs: fine - inizio,
+      nota: campoModNota.value.trim()
+    };
+  });
+  scriviJSON(CHIAVE_ALLENAMENTI, allenamenti);
+  chiudiModifica();
+  aggiornaPalestra();
+});
+
+document.getElementById('btn-mod-elimina').addEventListener('click', () => {
+  if (!confirm('Eliminare questo allenamento?')) return;
+  const rimanenti = leggiJSON(CHIAVE_ALLENAMENTI, []).filter(a => a.id !== idInModifica);
+  scriviJSON(CHIAVE_ALLENAMENTI, rimanenti);
+  chiudiModifica();
+  aggiornaPalestra();
+});
+
+document.getElementById('btn-mod-annulla').addEventListener('click', chiudiModifica);
+
+// Tocco sulla zona scura fuori dal pannello: chiude senza salvare
+veloModifica.addEventListener('click', evento => {
+  if (evento.target === veloModifica) chiudiModifica();
+});
+
 aggiornaPalestra();
 
 
 // ===================================================
-// Backup: esporta e importa
+// Backup: esporta e importa (scheda Impostazioni)
 // ===================================================
 
 const CHIAVE_ULTIMO_BACKUP = 'ultimoBackup';
