@@ -28,11 +28,28 @@
           <span>Nome</span>
           <input type="text" id="sveglia-nome" placeholder="Sveglia" maxlength="40" autocomplete="off">
         </label>
+        <div class="campo">
+          <span>Ripeti</span>
+          <div class="segmenti">
+            <label><input type="radio" name="ripeti" value="una" checked><span>Una volta</span></label>
+            <label><input type="radio" name="ripeti" value="feriali"><span>Lun-Ven</span></label>
+            <label><input type="radio" name="ripeti" value="ogni"><span>Ogni giorno</span></label>
+            <label><input type="radio" name="ripeti" value="weekend"><span>Weekend</span></label>
+          </div>
+        </div>
         <button type="submit" class="btn-primario">Imposta sveglia</button>
+        <button type="button" id="btn-salva-preferita" class="btn-testo">Salva come preferita</button>
       </form>
 
       <p id="sveglia-esito" class="esito"></p>
-      <p class="nota">La sveglia viene creata nell'app Orologio. Per disattivarla o eliminarla usa Orologio.</p>
+
+      <!-- Sveglie preferite -->
+      <h2 class="sezione">Preferite</h2>
+      <ul id="preferite" class="lista"></ul>
+      <p id="preferite-vuoto" class="nota">Nessuna sveglia preferita. Imposta ora, nome e ripetizione, poi tocca "Salva come preferita".</p>
+      <p id="preferite-aiuto" class="nota">Tocca una preferita per impostarla, × per eliminarla.</p>
+
+      <p class="nota">Le sveglie vengono create nell'app Orologio. Per disattivarle o eliminarle usa Orologio.</p>
     </section>
 
     <!-- ========== Vista Palestra ========== -->

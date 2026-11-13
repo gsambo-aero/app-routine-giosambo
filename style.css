@@ -114,6 +114,37 @@ main {
   min-height: 64px;
 }
 
+/* Selettore a segmenti (Ripeti) */
+.segmenti {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 3px;
+  padding: 3px;
+  background: var(--superficie-2);
+  border-radius: 10px;
+}
+.segmenti input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.campo .segmenti span {
+  display: block;
+  padding: 9px 2px;
+  font-size: 14px;
+  color: var(--testo);
+  text-align: center;
+  text-transform: none;
+  letter-spacing: 0;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.segmenti input:checked + span {
+  background: var(--accento);
+  color: #fff;
+  font-weight: 600;
+}
+
 /* Pulsanti */
 .btn-primario,
 .btn-secondario,
@@ -148,6 +179,16 @@ main {
 .btn-primario:active,
 .btn-secondario:active,
 .btn-testo:active { opacity: 0.6; }
+
+.btn-elimina {
+  padding: 4px 8px;
+  font-size: 26px;
+  line-height: 1;
+  color: var(--testo-secondario);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
 
 /* Allenamento in corso */
 .cronometro {
@@ -200,7 +241,7 @@ main {
   text-align: center;
 }
 
-/* Elenco (storico) */
+/* Elenchi (storico, preferite) */
 .lista {
   list-style: none;
   margin: 0 20px;

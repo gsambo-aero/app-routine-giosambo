@@ -74,6 +74,22 @@ function inizioMese() {
   return new Date(d.getFullYear(), d.getMonth(), 1);
 }
 
+// Crea una riga di elenco con titolo, sottotitolo e (opzionale) testo a destra
+function creaRiga(titoloTesto, sottoTesto) {
+  const riga = document.createElement('li');
+  riga.className = 'riga';
+  const sinistra = document.createElement('div');
+  const titolo = document.createElement('div');
+  titolo.className = 'riga-titolo';
+  titolo.textContent = titoloTesto;
+  const sotto = document.createElement('div');
+  sotto.className = 'riga-sotto';
+  sotto.textContent = sottoTesto;
+  sinistra.append(titolo, sotto);
+  riga.append(sinistra);
+  return { riga, sinistra };
+}
+
 
 // ===================================================
 // Navigazione tra le schede in basso
@@ -99,29 +115,109 @@ mostraVista(localStorage.getItem('ultimaVista') || 'sveglia');
 // Sveglia
 // ===================================================
 
-// Nome del comando rapido: deve coincidere esattamente con quello in Comandi Rapidi
-const COMANDO_SVEGLIA = 'Routine Sveglia';
+// Un comando rapido per ogni tipo di ripetizione.
+// I nomi devono coincidere esattamente con quelli in Comandi Rapidi.
+const COMANDI_SVEGLIA = {
+  una: 'Routine Sveglia',
+  feriali: 'Routine Sveglia Feriali',
+  ogni: 'Routine Sveglia Ogni giorno',
+  weekend: 'Routine Sveglia Weekend'
+};
+const ETICHETTE_RIPETI = {
+  una: 'una volta',
+  feriali: 'lun-ven',
+  ogni: 'ogni giorno',
+  weekend: 'weekend'
+};
+const CHIAVE_PREFERITE = 'svegliePreferite'; // elenco di { id, ora, nome, ripeti }
 
 const formSveglia = document.getElementById('form-sveglia');
 const campoOra = document.getElementById('sveglia-ora');
 const campoNomeSveglia = document.getElementById('sveglia-nome');
 const esitoSveglia = document.getElementById('sveglia-esito');
+const elPreferite = document.getElementById('preferite');
+const elPreferiteVuoto = document.getElementById('preferite-vuoto');
+const elPreferiteAiuto = document.getElementById('preferite-aiuto');
 
-formSveglia.addEventListener('submit', evento => {
-  evento.preventDefault(); // evita che la pagina si ricarichi
-
+// Legge ora, nome e ripetizione dal modulo (null se manca l'ora)
+function leggiModuloSveglia() {
   const ora = campoOra.value; // formato "HH:MM"
   if (!ora) {
     esitoSveglia.textContent = 'Scegli un orario.';
+    return null;
+  }
+  // Il carattere | separa ora e nome, quindi non può comparire nel nome
+  const nome = (campoNomeSveglia.value.trim() || 'Sveglia').replaceAll('|', ' ');
+  const ripeti = formSveglia.elements.ripeti.value || 'una';
+  return { ora, nome, ripeti };
+}
+
+// Esegue il comando rapido giusto per la ripetizione scelta
+function impostaSveglia(sveglia) {
+  esitoSveglia.textContent =
+    'Inviata: ' + sveglia.ora + ' ' + sveglia.nome + ' (' + ETICHETTE_RIPETI[sveglia.ripeti] + ')';
+  apriComando(COMANDI_SVEGLIA[sveglia.ripeti], sveglia.ora + '|' + sveglia.nome);
+}
+
+formSveglia.addEventListener('submit', evento => {
+  evento.preventDefault(); // evita che la pagina si ricarichi
+  const sveglia = leggiModuloSveglia();
+  if (sveglia) impostaSveglia(sveglia);
+});
+
+document.getElementById('btn-salva-preferita').addEventListener('click', () => {
+  const sveglia = leggiModuloSveglia();
+  if (!sveglia) return;
+
+  const preferite = leggiJSON(CHIAVE_PREFERITE, []);
+  const doppione = preferite.some(p =>
+    p.ora === sveglia.ora && p.nome === sveglia.nome && p.ripeti === sveglia.ripeti
+  );
+  if (doppione) {
+    esitoSveglia.textContent = 'Questa sveglia è già tra le preferite.';
     return;
   }
 
-  // Il carattere | separa ora e nome, quindi non può comparire nel nome
-  const nome = (campoNomeSveglia.value.trim() || 'Sveglia').replaceAll('|', ' ');
-
-  esitoSveglia.textContent = 'Inviata: ' + ora + ' ' + nome;
-  apriComando(COMANDO_SVEGLIA, ora + '|' + nome);
+  preferite.push({ id: Date.now().toString(), ...sveglia });
+  scriviJSON(CHIAVE_PREFERITE, preferite);
+  esitoSveglia.textContent = 'Salvata tra le preferite.';
+  mostraPreferite();
 });
+
+// Disegna l'elenco delle preferite, in ordine di orario
+function mostraPreferite() {
+  const preferite = leggiJSON(CHIAVE_PREFERITE, []).slice().sort((a, b) => a.ora.localeCompare(b.ora));
+
+  elPreferite.innerHTML = '';
+  elPreferiteVuoto.hidden = preferite.length > 0;
+  elPreferiteAiuto.hidden = preferite.length === 0;
+
+  preferite.forEach(p => {
+    const { riga } = creaRiga(p.nome, p.ora + ' · ' + ETICHETTE_RIPETI[p.ripeti]);
+
+    const elimina = document.createElement('button');
+    elimina.className = 'btn-elimina';
+    elimina.textContent = '×';
+    elimina.setAttribute('aria-label', 'Elimina');
+    elimina.addEventListener('click', evento => {
+      evento.stopPropagation(); // non attivare anche il tocco sulla riga
+      if (!confirm('Eliminare la preferita "' + p.nome + '"?')) return;
+      const rimanenti = leggiJSON(CHIAVE_PREFERITE, []).filter(x => x.id !== p.id);
+      scriviJSON(CHIAVE_PREFERITE, rimanenti);
+      mostraPreferite();
+    });
+    riga.append(elimina);
+
+    riga.addEventListener('click', () => {
+      const domanda = 'Impostare la sveglia "' + p.nome + '" alle ' + p.ora + ' (' + ETICHETTE_RIPETI[p.ripeti] + ')?';
+      if (confirm(domanda)) impostaSveglia(p);
+    });
+
+    elPreferite.append(riga);
+  });
+}
+
+mostraPreferite();
 
 
 // ===================================================
@@ -209,17 +305,7 @@ function mostraStorico(allenamenti) {
   elStoricoAiuto.hidden = ordinati.length === 0;
 
   ordinati.forEach(a => {
-    const riga = document.createElement('li');
-    riga.className = 'riga';
-
-    const sinistra = document.createElement('div');
-    const titolo = document.createElement('div');
-    titolo.className = 'riga-titolo';
-    titolo.textContent = a.nome;
-    const sotto = document.createElement('div');
-    sotto.className = 'riga-sotto';
-    sotto.textContent = formattaData(a.inizio) + ' · ' + formattaOra(a.inizio);
-    sinistra.append(titolo, sotto);
+    const { riga, sinistra } = creaRiga(a.nome, formattaData(a.inizio) + ' · ' + formattaOra(a.inizio));
 
     if (a.nota) {
       const nota = document.createElement('div');
@@ -231,8 +317,7 @@ function mostraStorico(allenamenti) {
     const destra = document.createElement('div');
     destra.className = 'riga-valore';
     destra.textContent = formattaDurata(a.durataMs);
-
-    riga.append(sinistra, destra);
+    riga.append(destra);
 
     // Tocco sulla riga: chiede conferma ed elimina
     riga.addEventListener('click', () => eliminaAllenamento(a));
@@ -346,7 +431,8 @@ document.getElementById('btn-esporta').addEventListener('click', async () => {
     versione: 1,
     esportatoIl: adesso.toISOString(),
     dati: {
-      allenamenti: leggiJSON(CHIAVE_ALLENAMENTI, [])
+      allenamenti: leggiJSON(CHIAVE_ALLENAMENTI, []),
+      svegliePreferite: leggiJSON(CHIAVE_PREFERITE, [])
     }
   };
   const nomeFile = 'routine-backup-' + dataPerNomeFile(adesso) + '.json';
@@ -384,29 +470,41 @@ campoFileBackup.addEventListener('change', async () => {
 
   try {
     const backup = JSON.parse(await file.text());
-    if (backup.app !== ID_APP || !backup.dati || !Array.isArray(backup.dati.allenamenti)) {
-      throw new Error('formato non valido');
-    }
+    if (backup.app !== ID_APP || !backup.dati) throw new Error('formato non valido');
 
-    // Aggiunge solo gli allenamenti validi che non sono già presenti
-    const attuali = leggiJSON(CHIAVE_ALLENAMENTI, []);
-    const idPresenti = new Set(attuali.map(a => a.id));
-    const nuovi = backup.dati.allenamenti.filter(a =>
+    const daBackupAll = Array.isArray(backup.dati.allenamenti) ? backup.dati.allenamenti : [];
+    const daBackupPref = Array.isArray(backup.dati.svegliePreferite) ? backup.dati.svegliePreferite : [];
+
+    // Allenamenti: aggiunge solo quelli validi e non già presenti
+    const allenamenti = leggiJSON(CHIAVE_ALLENAMENTI, []);
+    const idAll = new Set(allenamenti.map(a => a.id));
+    const nuoviAll = daBackupAll.filter(a =>
       a && a.id && typeof a.nome === 'string' && a.inizio &&
-      typeof a.durataMs === 'number' && !idPresenti.has(a.id)
+      typeof a.durataMs === 'number' && !idAll.has(a.id)
     );
 
-    if (nuovi.length === 0) {
-      esitoBackup.textContent = 'Nessun allenamento nuovo nel backup.';
-      return;
-    }
-    if (!confirm('Importare ' + nuovi.length + ' allenamenti dal backup del ' + formattaData(backup.esportatoIl) + '?')) {
+    // Sveglie preferite: stesso criterio
+    const preferite = leggiJSON(CHIAVE_PREFERITE, []);
+    const idPref = new Set(preferite.map(p => p.id));
+    const nuovePref = daBackupPref.filter(p =>
+      p && p.id && typeof p.ora === 'string' && typeof p.nome === 'string' &&
+      COMANDI_SVEGLIA[p.ripeti] && !idPref.has(p.id)
+    );
+
+    if (nuoviAll.length === 0 && nuovePref.length === 0) {
+      esitoBackup.textContent = 'Niente di nuovo nel backup.';
       return;
     }
 
-    scriviJSON(CHIAVE_ALLENAMENTI, attuali.concat(nuovi));
-    esitoBackup.textContent = 'Importati ' + nuovi.length + ' allenamenti.';
+    const domanda = 'Importare dal backup del ' + formattaData(backup.esportatoIl) + ': ' +
+      nuoviAll.length + ' allenamenti e ' + nuovePref.length + ' sveglie preferite?';
+    if (!confirm(domanda)) return;
+
+    scriviJSON(CHIAVE_ALLENAMENTI, allenamenti.concat(nuoviAll));
+    scriviJSON(CHIAVE_PREFERITE, preferite.concat(nuovePref));
+    esitoBackup.textContent = 'Importati ' + nuoviAll.length + ' allenamenti e ' + nuovePref.length + ' preferite.';
     aggiornaPalestra();
+    mostraPreferite();
   } catch {
     esitoBackup.textContent = 'File non valido: scegli un backup di Routine (.json).';
   }
