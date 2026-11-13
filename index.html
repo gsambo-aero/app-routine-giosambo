@@ -124,6 +124,20 @@
         <h1>Impostazioni</h1>
       </header>
 
+      <!-- Collegamento a Intervals.icu (dati del Suunto) -->
+      <h2 class="sezione">Intervals.icu</h2>
+      <div class="card">
+        <label class="campo">
+          <span>Chiave API</span>
+          <input type="password" id="intervals-chiave" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Incolla la chiave API">
+        </label>
+        <button id="btn-salva-chiave" class="btn-secondario">Salva chiave</button>
+        <button id="btn-sincronizza" class="btn-primario">Sincronizza ora</button>
+        <span id="stato-sync" class="testo-sec" style="text-align: center;"></span>
+      </div>
+      <p id="esito-sync" class="esito"></p>
+      <p class="nota">La chiave resta solo su questo iPhone e non viene inclusa nel backup.</p>
+
       <!-- Backup -->
       <h2 class="sezione">Backup</h2>
       <div class="card centro">

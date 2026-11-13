@@ -52,7 +52,7 @@ function formattaOra(iso) {
   return new Date(iso).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
 }
 
-// "2026-11-13" (data locale, per i nomi dei file)
+// "2026-11-13" (data locale: per nomi dei file e richieste per data)
 function dataPerNomeFile(d) {
   const mm = String(d.getMonth() + 1).padStart(2, '0');
   const gg = String(d.getDate()).padStart(2, '0');
@@ -481,6 +481,145 @@ veloModifica.addEventListener('click', evento => {
 });
 
 aggiornaPalestra();
+
+
+// ===================================================
+// Intervals.icu: scarica i dati del Suunto (scheda Impostazioni)
+// ===================================================
+
+const CHIAVE_API_INTERVALS = 'intervalsChiaveApi'; // resta solo su questo iPhone, mai nel backup
+const CHIAVE_DATI_SALUTE = 'datiSalute';           // { notti: { "AAAA-MM-GG": {...} }, attivita: { id: {...} } }
+const CHIAVE_ULTIMA_SYNC = 'ultimaSincronizzazione';
+const GIORNI_DA_SCARICARE = 30;
+const ORE_TRA_SYNC_AUTOMATICHE = 1;
+
+const campoChiaveIntervals = document.getElementById('intervals-chiave');
+const elStatoSync = document.getElementById('stato-sync');
+const esitoSync = document.getElementById('esito-sync');
+
+function mostraEsitoSync(testo, errore) {
+  esitoSync.textContent = testo;
+  esitoSync.classList.toggle('esito-errore', !!errore);
+}
+
+// Chiama un indirizzo dell'API di Intervals.icu per il proprio account (athlete/0)
+async function chiamaIntervals(percorso) {
+  const chiave = localStorage.getItem(CHIAVE_API_INTERVALS);
+  if (!chiave) throw new Error('Chiave API mancante: incollala e tocca "Salva chiave".');
+
+  const risposta = await fetch('https://intervals.icu/api/v1/athlete/0/' + percorso, {
+    headers: { Authorization: 'Basic ' + btoa('API_KEY:' + chiave) }
+  });
+  if (risposta.status === 401 || risposta.status === 403) {
+    throw new Error('Chiave API non valida: controllala su Intervals.icu.');
+  }
+  if (!risposta.ok) throw new Error('Intervals.icu ha risposto con errore ' + risposta.status + '.');
+  return risposta.json();
+}
+
+// Scarica benessere (sonno, battiti a riposo, HRV...) e attività degli ultimi giorni
+async function sincronizza() {
+  const oggi = new Date();
+  const inizio = new Date();
+  inizio.setDate(inizio.getDate() - GIORNI_DA_SCARICARE);
+  const intervallo = 'oldest=' + dataPerNomeFile(inizio) + '&newest=' + dataPerNomeFile(oggi);
+
+  const [benessere, attivita] = await Promise.all([
+    chiamaIntervals('wellness?' + intervallo),
+    chiamaIntervals('activities?' + intervallo)
+  ]);
+
+  const dati = leggiJSON(CHIAVE_DATI_SALUTE, { notti: {}, attivita: {} });
+
+  // Benessere: una voce per giorno. Teniamo solo i campi che ci servono.
+  benessere.forEach(g => {
+    const voce = {
+      data: g.id,                 // giorno del risveglio, "AAAA-MM-GG"
+      sonnoSec: g.sleepSecs,
+      punteggioSonno: g.sleepScore,
+      qualitaSonno: g.sleepQuality, // 1 eccellente, 2 buona, 3 discreta, 4 scarsa
+      fcRiposo: g.restingHR,
+      fcMediaSonno: g.avgSleepingHR,
+      hrv: g.hrv,
+      spo2: g.spO2,
+      passi: g.steps
+    };
+    const haDati = Object.keys(voce).some(k => k !== 'data' && voce[k] !== null && voce[k] !== undefined);
+    if (haDati) dati.notti[g.id] = voce;
+  });
+
+  // Attività registrate col Suunto
+  attivita.forEach(a => {
+    dati.attivita[a.id] = {
+      id: a.id,
+      nome: a.name,
+      tipo: a.type,
+      inizio: a.start_date,       // orario UTC, confrontabile con gli allenamenti salvati
+      durataSec: a.elapsed_time,
+      fcMedia: a.average_heartrate,
+      fcMax: a.max_heartrate,
+      calorie: a.calories
+    };
+  });
+
+  scriviJSON(CHIAVE_DATI_SALUTE, dati);
+  localStorage.setItem(CHIAVE_ULTIMA_SYNC, new Date().toISOString());
+  return dati;
+}
+
+function mostraStatoSync() {
+  const haChiave = !!localStorage.getItem(CHIAVE_API_INTERVALS);
+  campoChiaveIntervals.placeholder = haChiave ? 'Chiave salvata (incolla per sostituirla)' : 'Incolla la chiave API';
+
+  const ultima = localStorage.getItem(CHIAVE_ULTIMA_SYNC);
+  const dati = leggiJSON(CHIAVE_DATI_SALUTE, { notti: {}, attivita: {} });
+  const nottiConSonno = Object.values(dati.notti).filter(n => n.sonnoSec).length;
+  const numAttivita = Object.keys(dati.attivita).length;
+
+  elStatoSync.textContent = ultima
+    ? 'Ultima sincronizzazione: ' + formattaData(ultima) + ' alle ' + formattaOra(ultima) +
+      ' · ' + nottiConSonno + ' notti con sonno · ' + numAttivita + ' attività'
+    : 'Mai sincronizzato.';
+}
+
+document.getElementById('btn-salva-chiave').addEventListener('click', () => {
+  const chiave = campoChiaveIntervals.value.trim();
+  if (!chiave) {
+    mostraEsitoSync('Incolla prima la chiave API.', true);
+    return;
+  }
+  localStorage.setItem(CHIAVE_API_INTERVALS, chiave);
+  campoChiaveIntervals.value = '';
+  mostraEsitoSync('Chiave salvata.');
+  mostraStatoSync();
+});
+
+document.getElementById('btn-sincronizza').addEventListener('click', async () => {
+  mostraEsitoSync('Sincronizzazione in corso...');
+  try {
+    await sincronizza();
+    mostraEsitoSync('Sincronizzazione completata.');
+  } catch (errore) {
+    mostraEsitoSync(errore.message || 'Sincronizzazione non riuscita: controlla la connessione.', true);
+  }
+  mostraStatoSync();
+});
+
+// Sincronizzazione automatica all'apertura, se è passata almeno un'ora dall'ultima
+async function sincronizzaSeServe() {
+  if (!localStorage.getItem(CHIAVE_API_INTERVALS) || !navigator.onLine) return;
+  const ultima = localStorage.getItem(CHIAVE_ULTIMA_SYNC);
+  if (ultima && Date.now() - new Date(ultima) < ORE_TRA_SYNC_AUTOMATICHE * 3600000) return;
+  try {
+    await sincronizza();
+    mostraStatoSync();
+  } catch {
+    // In automatico gli errori si ignorano: si vedranno con "Sincronizza ora"
+  }
+}
+
+mostraStatoSync();
+sincronizzaSeServe();
 
 
 // ===================================================
