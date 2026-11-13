@@ -18,7 +18,21 @@
       <header class="titolo">
         <h1>Sveglia</h1>
       </header>
-      <div class="vuoto">Qui imposterai le sveglie.</div>
+
+      <form id="form-sveglia" class="card">
+        <label class="campo">
+          <span>Ora</span>
+          <input type="time" id="sveglia-ora" value="07:00" required>
+        </label>
+        <label class="campo">
+          <span>Nome</span>
+          <input type="text" id="sveglia-nome" placeholder="Sveglia" maxlength="40" autocomplete="off">
+        </label>
+        <button type="submit" class="btn-primario">Imposta sveglia</button>
+      </form>
+
+      <p id="sveglia-esito" class="esito"></p>
+      <p class="nota">La sveglia viene creata nell'app Orologio. Per disattivarla o eliminarla usa Orologio.</p>
     </section>
 
     <!-- Vista Palestra -->
