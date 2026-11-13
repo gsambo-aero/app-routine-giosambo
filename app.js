@@ -490,7 +490,9 @@ aggiornaPalestra();
 const CHIAVE_API_INTERVALS = 'intervalsChiaveApi'; // resta solo su questo iPhone, mai nel backup
 const CHIAVE_DATI_SALUTE = 'datiSalute';           // { notti: { "AAAA-MM-GG": {...} }, attivita: { id: {...} } }
 const CHIAVE_ULTIMA_SYNC = 'ultimaSincronizzazione';
-const GIORNI_DA_SCARICARE = 30;
+const CHIAVE_VERSIONE_DATI = 'versioneDatiSalute';
+const VERSIONE_DATI = '2'; // se cambia, alla prossima apertura si riscarica tutto
+const GIORNI_DA_SCARICARE = 90;
 const ORE_TRA_SYNC_AUTOMATICHE = 1;
 
 const campoChiaveIntervals = document.getElementById('intervals-chiave');
@@ -553,18 +555,47 @@ async function sincronizza() {
     dati.attivita[a.id] = {
       id: a.id,
       nome: a.name,
-      tipo: a.type,
-      inizio: a.start_date,       // orario UTC, confrontabile con gli allenamenti salvati
-      durataSec: a.elapsed_time,
+      tipo: a.type,                     // es. "Run"
+      inizio: a.start_date,             // orario UTC, confrontabile con gli allenamenti salvati
+      durataSec: a.elapsed_time,        // tempo totale
+      movimentoSec: a.moving_time,      // tempo in movimento
+      distanzaM: a.distance,
+      dislivelloM: a.total_elevation_gain,
       fcMedia: a.average_heartrate,
       fcMax: a.max_heartrate,
-      calorie: a.calories
+      calorie: a.calories,
+      carico: a.icu_training_load,
+      zoneFcSec: a.icu_hr_zone_times,   // secondi passati in ciascuna zona
+      zoneFcLimiti: a.icu_hr_zones      // limite superiore (bpm) di ciascuna zona
     };
   });
 
   scriviJSON(CHIAVE_DATI_SALUTE, dati);
   localStorage.setItem(CHIAVE_ULTIMA_SYNC, new Date().toISOString());
+  localStorage.setItem(CHIAVE_VERSIONE_DATI, VERSIONE_DATI);
   return dati;
+}
+
+// Aggiorna tutte le schede che mostrano dati scaricati
+function aggiornaSchedeSalute() {
+  mostraStatoSync();
+  mostraCorsa();
+}
+
+// Sincronizzazione avviata da un pulsante: mostra l'esito in Impostazioni.
+// Restituisce il messaggio d'errore, oppure null se è andata bene.
+async function sincronizzaConEsito() {
+  mostraEsitoSync('Sincronizzazione in corso...');
+  let messaggioErrore = null;
+  try {
+    await sincronizza();
+    mostraEsitoSync('Sincronizzazione completata.');
+  } catch (errore) {
+    messaggioErrore = errore.message || 'Sincronizzazione non riuscita: controlla la connessione.';
+    mostraEsitoSync(messaggioErrore, true);
+  }
+  aggiornaSchedeSalute();
+  return messaggioErrore;
 }
 
 function mostraStatoSync() {
@@ -594,32 +625,458 @@ document.getElementById('btn-salva-chiave').addEventListener('click', () => {
   mostraStatoSync();
 });
 
-document.getElementById('btn-sincronizza').addEventListener('click', async () => {
-  mostraEsitoSync('Sincronizzazione in corso...');
-  try {
-    await sincronizza();
-    mostraEsitoSync('Sincronizzazione completata.');
-  } catch (errore) {
-    mostraEsitoSync(errore.message || 'Sincronizzazione non riuscita: controlla la connessione.', true);
-  }
-  mostraStatoSync();
-});
+document.getElementById('btn-sincronizza').addEventListener('click', sincronizzaConEsito);
 
 // Sincronizzazione automatica all'apertura, se è passata almeno un'ora dall'ultima
+// (oppure subito, se i dati salvati sono di una versione vecchia dell'app)
 async function sincronizzaSeServe() {
   if (!localStorage.getItem(CHIAVE_API_INTERVALS) || !navigator.onLine) return;
   const ultima = localStorage.getItem(CHIAVE_ULTIMA_SYNC);
-  if (ultima && Date.now() - new Date(ultima) < ORE_TRA_SYNC_AUTOMATICHE * 3600000) return;
+  const versioneOk = localStorage.getItem(CHIAVE_VERSIONE_DATI) === VERSIONE_DATI;
+  if (versioneOk && ultima && Date.now() - new Date(ultima) < ORE_TRA_SYNC_AUTOMATICHE * 3600000) return;
   try {
     await sincronizza();
-    mostraStatoSync();
+    aggiornaSchedeSalute();
   } catch {
     // In automatico gli errori si ignorano: si vedranno con "Sincronizza ora"
   }
 }
 
 mostraStatoSync();
-sincronizzaSeServe();
+
+
+// ===================================================
+// Corsa: dati del Suunto scaricati da Intervals.icu
+// ===================================================
+
+const TIPI_CORSA = ['Run', 'TrailRun', 'VirtualRun'];
+const PASSO_MIN_SEC = 150; // 2:30 /km: sotto è una registrazione anomala
+const PASSO_MAX_SEC = 720; // 12:00 /km: sopra è una registrazione anomala
+const SETTIMANE_GRAFICO = 8;
+const CORSE_GRAFICO = 12;
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+const elCorsaVuoto = document.getElementById('corsa-vuoto');
+const elCorsaContenuto = document.getElementById('corsa-contenuto');
+const elCorsaUltima = document.getElementById('corsa-ultima');
+const elCorsaStorico = document.getElementById('corsa-storico');
+const elCorsaFonte = document.getElementById('corsa-fonte');
+
+// Elenco delle corse salvate, dalla più recente
+function leggiCorse() {
+  const dati = leggiJSON(CHIAVE_DATI_SALUTE, { notti: {}, attivita: {} });
+  return Object.values(dati.attivita)
+    .filter(a => TIPI_CORSA.includes(a.tipo) && a.distanzaM > 0)
+    .sort((a, b) => b.inizio.localeCompare(a.inizio));
+}
+
+// Secondi per km (usa il tempo in movimento se disponibile)
+function passoSec(corsa) {
+  const tempo = corsa.movimentoSec || corsa.durataSec;
+  return tempo / (corsa.distanzaM / 1000);
+}
+
+function passoValido(corsa) {
+  const p = passoSec(corsa);
+  return p >= PASSO_MIN_SEC && p <= PASSO_MAX_SEC;
+}
+
+// "8,03" (km con due decimali e virgola)
+function formattaKm(metri, decimali = 2) {
+  return (metri / 1000).toFixed(decimali).replace('.', ',');
+}
+
+// "5:59 /km"
+function formattaPasso(secondiAlKm) {
+  const totale = Math.round(secondiAlKm);
+  const min = Math.floor(totale / 60);
+  const sec = String(totale % 60).padStart(2, '0');
+  return min + ':' + sec + ' /km';
+}
+
+function valoreOnd(valore, suffisso) {
+  return valore === null || valore === undefined ? 'n/d' : Math.round(valore) + suffisso;
+}
+
+// Crea un elemento SVG con i suoi attributi
+function elementoSvg(tipo, attributi) {
+  const el = document.createElementNS(SVG_NS, tipo);
+  Object.entries(attributi).forEach(([k, v]) => el.setAttribute(k, v));
+  return el;
+}
+
+// Grafico a colonne (una sola serie): punti = [{ etichetta, valore, dettaglio }]
+function disegnaColonne(contenitore, info, punti, formattaAsse, testoIniziale) {
+  const L = 340, A = 170, sx = 34, dx = 8, su = 10, giu = 24;
+  const largh = L - sx - dx, alt = A - su - giu;
+  const massimo = Math.max(...punti.map(p => p.valore), 0);
+  const scala = massimo > 0 ? massimo : 1;
+
+  const svg = elementoSvg('svg', { viewBox: '0 0 ' + L + ' ' + A, role: 'img' });
+
+  // Griglia orizzontale: base, metà, massimo
+  [0, 0.5, 1].forEach(f => {
+    const y = su + alt - f * alt;
+    svg.append(elementoSvg('line', { class: 'griglia', x1: sx, x2: L - dx, y1: y, y2: y }));
+    const testo = elementoSvg('text', { class: 'asse', x: sx - 6, y: y + 4, 'text-anchor': 'end' });
+    testo.textContent = formattaAsse(f * scala);
+    svg.append(testo);
+  });
+
+  const fascia = largh / punti.length;
+  const spessore = Math.min(24, fascia - 6);
+  const barre = [];
+
+  punti.forEach((p, i) => {
+    const cx = sx + fascia * i + fascia / 2;
+    const h = (p.valore / scala) * alt;
+    const x = cx - spessore / 2;
+    const yBase = su + alt;
+    const r = Math.min(4, h);
+
+    // Colonna con angoli arrotondati solo in alto, base squadrata
+    if (h > 0) {
+      const d = 'M' + x + ',' + yBase +
+        ' V' + (yBase - h + r) +
+        ' Q' + x + ',' + (yBase - h) + ' ' + (x + r) + ',' + (yBase - h) +
+        ' H' + (x + spessore - r) +
+        ' Q' + (x + spessore) + ',' + (yBase - h) + ' ' + (x + spessore) + ',' + (yBase - h + r) +
+        ' V' + yBase + ' Z';
+      const barra = elementoSvg('path', { class: 'barra', d });
+      barre.push(barra);
+      svg.append(barra);
+    } else {
+      barre.push(null);
+    }
+
+    const etichetta = elementoSvg('text', { class: 'asse', x: cx, y: A - 6, 'text-anchor': 'middle' });
+    etichetta.textContent = p.etichetta;
+    svg.append(etichetta);
+
+    // Area di tocco grande quanto tutta la fascia
+    const bersaglio = elementoSvg('rect', { class: 'bersaglio', x: sx + fascia * i, y: su, width: fascia, height: alt + giu });
+    bersaglio.addEventListener('click', () => {
+      barre.forEach(b => b && b.classList.remove('selezionata'));
+      if (barre[i]) barre[i].classList.add('selezionata');
+      info.textContent = p.dettaglio;
+    });
+    svg.append(bersaglio);
+  });
+
+  contenitore.innerHTML = '';
+  contenitore.append(svg);
+  info.textContent = testoIniziale;
+}
+
+// Grafico a linea (una sola serie): punti = [{ etichetta, valore, dettaglio }].
+// Con "invertito" i valori piccoli stanno in alto (per il passo: più veloce = più in alto).
+function disegnaLinea(contenitore, info, punti, formattaAsse, invertito, testoIniziale) {
+  const L = 340, A = 170, sx = 46, dx = 12, su = 12, giu = 24;
+  const largh = L - sx - dx, alt = A - su - giu;
+  const valori = punti.map(p => p.valore);
+  let min = Math.min(...valori), max = Math.max(...valori);
+  if (max - min < 1) { min -= 15; max += 15; }
+  const margine = (max - min) * 0.1;
+  min -= margine;
+  max += margine;
+
+  const yDi = v => {
+    const f = (v - min) / (max - min);
+    return invertito ? su + f * alt : su + alt - f * alt;
+  };
+  const xDi = i => punti.length === 1 ? sx + largh / 2 : sx + (largh * i) / (punti.length - 1);
+
+  const svg = elementoSvg('svg', { viewBox: '0 0 ' + L + ' ' + A, role: 'img' });
+
+  // Griglia: valore più alto, intermedio, più basso del grafico
+  [0, 0.5, 1].forEach(f => {
+    const y = su + f * alt;
+    const valore = invertito ? min + f * (max - min) : max - f * (max - min);
+    svg.append(elementoSvg('line', { class: 'griglia', x1: sx, x2: L - dx, y1: y, y2: y }));
+    const testo = elementoSvg('text', { class: 'asse', x: sx - 6, y: y + 4, 'text-anchor': 'end' });
+    testo.textContent = formattaAsse(valore);
+    svg.append(testo);
+  });
+
+  const percorso = punti.map((p, i) => (i === 0 ? 'M' : 'L') + xDi(i) + ',' + yDi(p.valore)).join(' ');
+  svg.append(elementoSvg('path', { class: 'linea', d: percorso }));
+
+  // Etichette sull'asse orizzontale: prima e ultima data
+  [0, punti.length - 1].forEach((i, n) => {
+    if (n === 1 && i === 0) return;
+    const testo = elementoSvg('text', {
+      class: 'asse', x: xDi(i), y: A - 6,
+      'text-anchor': punti.length === 1 ? 'middle' : (n === 0 ? 'start' : 'end')
+    });
+    testo.textContent = punti[i].etichetta;
+    svg.append(testo);
+  });
+
+  const cerchi = [];
+  punti.forEach((p, i) => {
+    const cerchio = elementoSvg('circle', { class: 'punto', cx: xDi(i), cy: yDi(p.valore), r: 5 });
+    cerchi.push(cerchio);
+    svg.append(cerchio);
+  });
+
+  // Aree di tocco: strisce verticali attorno a ogni punto
+  punti.forEach((p, i) => {
+    const passo = punti.length === 1 ? largh : largh / (punti.length - 1);
+    const bersaglio = elementoSvg('rect', {
+      class: 'bersaglio', x: xDi(i) - passo / 2, y: 0, width: passo, height: A
+    });
+    bersaglio.addEventListener('click', () => {
+      cerchi.forEach(c => c.classList.remove('selezionato'));
+      cerchi[i].classList.add('selezionato');
+      info.textContent = p.dettaglio;
+    });
+    svg.append(bersaglio);
+  });
+
+  contenitore.innerHTML = '';
+  contenitore.append(svg);
+  info.textContent = testoIniziale;
+}
+
+// Riquadro "ultima corsa"
+function mostraUltimaCorsa(c) {
+  elCorsaUltima.innerHTML = '';
+
+  const etichetta = document.createElement('span');
+  etichetta.className = 'etichetta';
+  etichetta.textContent = 'Ultima corsa · ' + formattaData(c.inizio) + ' alle ' + formattaOra(c.inizio);
+
+  const valore = document.createElement('div');
+  valore.className = 'hero-valore';
+  valore.textContent = formattaKm(c.distanzaM);
+  const unita = document.createElement('span');
+  unita.className = 'hero-unita';
+  unita.textContent = 'km';
+  valore.append(unita);
+
+  const righe = document.createElement('div');
+  righe.className = 'hero-righe';
+  [
+    ['Durata', formattaDurata((c.movimentoSec || c.durataSec) * 1000)],
+    ['Passo', formattaPasso(passoSec(c))],
+    ['FC media', valoreOnd(c.fcMedia, ' bpm')]
+  ].forEach(([nome, testo]) => {
+    const voce = document.createElement('span');
+    voce.append(nome + ' ');
+    const b = document.createElement('b');
+    b.textContent = testo;
+    voce.append(b);
+    righe.append(voce);
+  });
+
+  elCorsaUltima.append(etichetta, valore, righe);
+  elCorsaUltima.onclick = () => apriDettaglioCorsa(c);
+}
+
+// I 6 numeri del riepilogo
+function mostraRiepilogoCorsa(corse) {
+  const settimana = inizioSettimana();
+  const mese = inizioMese();
+  const diSettimana = corse.filter(c => new Date(c.inizio) >= settimana);
+  const diMese = corse.filter(c => new Date(c.inizio) >= mese);
+
+  const somma = (elenco, campo) => elenco.reduce((t, c) => t + (c[campo] || 0), 0);
+
+  document.getElementById('stat-corsa-sett-km').textContent = formattaKm(somma(diSettimana, 'distanzaM'), 1) + ' km';
+  document.getElementById('stat-corsa-sett-num').textContent = diSettimana.length;
+  document.getElementById('stat-corsa-mese-km').textContent = formattaKm(somma(diMese, 'distanzaM'), 1) + ' km';
+  document.getElementById('stat-corsa-mese-disl').textContent = Math.round(somma(diMese, 'dislivelloM')) + ' m';
+
+  // Passo medio del mese: tempo totale / km totali (solo corse con passo plausibile)
+  const valide = diMese.filter(passoValido);
+  const km = somma(valide, 'distanzaM') / 1000;
+  const tempo = valide.reduce((t, c) => t + (c.movimentoSec || c.durataSec), 0);
+  document.getElementById('stat-corsa-mese-passo').textContent = km > 0 ? formattaPasso(tempo / km) : 'n/d';
+
+  // FC media del mese, pesata sulla durata di ogni corsa
+  const conFc = diMese.filter(c => c.fcMedia);
+  const pesoTot = conFc.reduce((t, c) => t + (c.movimentoSec || c.durataSec), 0);
+  const fc = pesoTot > 0
+    ? conFc.reduce((t, c) => t + c.fcMedia * (c.movimentoSec || c.durataSec), 0) / pesoTot
+    : null;
+  document.getElementById('stat-corsa-mese-fc').textContent = valoreOnd(fc, ' bpm');
+}
+
+// Grafico dei km nelle ultime settimane (da lunedì a domenica)
+function mostraGraficoKm(corse) {
+  const lunedi = inizioSettimana();
+  const punti = [];
+  for (let i = SETTIMANE_GRAFICO - 1; i >= 0; i--) {
+    const da = new Date(lunedi);
+    da.setDate(da.getDate() - 7 * i);
+    const a = new Date(da);
+    a.setDate(a.getDate() + 7);
+    const nella = corse.filter(c => new Date(c.inizio) >= da && new Date(c.inizio) < a);
+    const metri = nella.reduce((t, c) => t + c.distanzaM, 0);
+    punti.push({
+      etichetta: da.getDate() + '/' + (da.getMonth() + 1),
+      valore: metri / 1000,
+      dettaglio: 'Settimana dal ' + da.toLocaleDateString('it-IT', { day: 'numeric', month: 'short' }) +
+        ': ' + formattaKm(metri, 1) + ' km in ' + nella.length + (nella.length === 1 ? ' corsa' : ' corse')
+    });
+  }
+  disegnaColonne(
+    document.getElementById('grafico-km'),
+    document.getElementById('info-km'),
+    punti,
+    v => (Math.round(v * 10) / 10).toString().replace('.', ','),
+    'Tocca una colonna per i dettagli'
+  );
+}
+
+// Grafico del passo medio delle ultime corse (in ordine di data)
+function mostraGraficoPasso(corse) {
+  const contenitore = document.getElementById('grafico-passo');
+  const info = document.getElementById('info-passo');
+  const scelte = corse.filter(passoValido).slice(0, CORSE_GRAFICO).reverse();
+
+  if (scelte.length === 0) {
+    contenitore.innerHTML = '';
+    info.textContent = 'Nessuna corsa con passo valido.';
+    return;
+  }
+
+  const punti = scelte.map(c => ({
+    etichetta: new Date(c.inizio).toLocaleDateString('it-IT', { day: 'numeric', month: 'numeric' }),
+    valore: passoSec(c),
+    dettaglio: formattaData(c.inizio) + ': ' + formattaPasso(passoSec(c)) + ' · ' +
+      formattaKm(c.distanzaM, 1) + ' km · FC ' + valoreOnd(c.fcMedia, ' bpm')
+  }));
+  disegnaLinea(contenitore, info, punti, v => formattaPasso(v).replace(' /km', ''), true, 'Tocca un punto per i dettagli');
+}
+
+// Storico: una riga per corsa
+function mostraStoricoCorse(corse) {
+  elCorsaStorico.innerHTML = '';
+  corse.forEach(c => {
+    const sotto = formattaData(c.inizio) + ' · ' + formattaKm(c.distanzaM) + ' km · ' + formattaPasso(passoSec(c));
+    const { riga } = creaRiga(c.nome || 'Corsa', sotto);
+    const destra = document.createElement('div');
+    destra.className = 'riga-valore';
+    destra.textContent = c.fcMedia ? Math.round(c.fcMedia) + ' bpm' : formattaDurata(c.durataSec * 1000);
+    riga.append(destra);
+    riga.addEventListener('click', () => apriDettaglioCorsa(c));
+    elCorsaStorico.append(riga);
+  });
+}
+
+// ---------- Dettaglio di una corsa ----------
+
+const veloCorsa = document.getElementById('velo-corsa');
+
+function apriDettaglioCorsa(c) {
+  document.getElementById('corsa-dett-titolo').textContent = c.nome || 'Corsa';
+  document.getElementById('corsa-dett-data').textContent =
+    new Date(c.inizio).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' }) +
+    ' alle ' + formattaOra(c.inizio);
+
+  const movimento = c.movimentoSec || c.durataSec;
+  const voci = [
+    ['Distanza', formattaKm(c.distanzaM) + ' km'],
+    ['Tempo in movimento', formattaDurata(movimento * 1000)],
+    ['Passo medio', formattaPasso(passoSec(c))],
+    ['Velocità media', ((c.distanzaM / 1000) / (movimento / 3600)).toFixed(1).replace('.', ',') + ' km/h'],
+    ['FC media', valoreOnd(c.fcMedia, ' bpm')],
+    ['FC massima', valoreOnd(c.fcMax, ' bpm')],
+    ['Dislivello', valoreOnd(c.dislivelloM, ' m')],
+    ['Calorie', valoreOnd(c.calorie, ' kcal')],
+    ['Carico allenamento', valoreOnd(c.carico, '')],
+    ['Tempo totale', formattaDurata(c.durataSec * 1000)]
+  ];
+
+  const elValori = document.getElementById('corsa-dett-valori');
+  elValori.innerHTML = '';
+  voci.forEach(([nome, testo]) => {
+    const box = document.createElement('div');
+    box.className = 'dettaglio';
+    const e = document.createElement('span');
+    e.className = 'dettaglio-etichetta';
+    e.textContent = nome;
+    const v = document.createElement('span');
+    v.className = 'dettaglio-valore';
+    v.textContent = testo;
+    box.append(e, v);
+    elValori.append(box);
+  });
+
+  // Zone di frequenza cardiaca (Z1 = più bassa)
+  const elZone = document.getElementById('corsa-dett-zone');
+  const titoloZone = document.getElementById('corsa-dett-zone-titolo');
+  elZone.innerHTML = '';
+  const zone = Array.isArray(c.zoneFcSec) ? c.zoneFcSec : [];
+  const totaleZone = zone.reduce((t, s) => t + s, 0);
+  titoloZone.hidden = totaleZone === 0;
+
+  if (totaleZone > 0) {
+    const limiti = Array.isArray(c.zoneFcLimiti) ? c.zoneFcLimiti : [];
+    zone.forEach((secondi, i) => {
+      const quota = secondi / totaleZone;
+      const riga = document.createElement('div');
+      riga.className = 'zona';
+
+      const nome = document.createElement('span');
+      const da = i === 0 ? null : limiti[i - 1];
+      const fino = limiti[i];
+      nome.textContent = 'Z' + (i + 1) + (fino ? (da ? ' ' + da + '-' + fino : ' <' + fino) : '');
+
+      const traccia = document.createElement('div');
+      traccia.className = 'zona-traccia';
+      const riempimento = document.createElement('div');
+      riempimento.className = 'zona-riempimento';
+      riempimento.style.width = (quota * 100).toFixed(1) + '%';
+      traccia.append(riempimento);
+
+      const valore = document.createElement('span');
+      valore.className = 'zona-valore';
+      valore.textContent = Math.round(secondi / 60) + ' min';
+
+      riga.append(nome, traccia, valore);
+      elZone.append(riga);
+    });
+  }
+
+  veloCorsa.hidden = false;
+}
+
+function chiudiDettaglioCorsa() {
+  veloCorsa.hidden = true;
+}
+
+document.getElementById('btn-corsa-chiudi').addEventListener('click', chiudiDettaglioCorsa);
+veloCorsa.addEventListener('click', evento => {
+  if (evento.target === veloCorsa) chiudiDettaglioCorsa();
+});
+
+// Aggiorna tutta la scheda Corsa
+function mostraCorsa() {
+  const corse = leggiCorse();
+  elCorsaVuoto.hidden = corse.length > 0;
+  elCorsaContenuto.hidden = corse.length === 0;
+
+  const ultima = localStorage.getItem(CHIAVE_ULTIMA_SYNC);
+  elCorsaFonte.textContent = 'Dati del Suunto tramite Intervals.icu' +
+    (ultima ? ' · aggiornati ' + formattaData(ultima) + ' alle ' + formattaOra(ultima) : '');
+
+  if (corse.length === 0) return;
+  mostraUltimaCorsa(corse[0]);
+  mostraRiepilogoCorsa(corse);
+  mostraGraficoKm(corse);
+  mostraGraficoPasso(corse);
+  mostraStoricoCorse(corse);
+}
+
+document.getElementById('btn-sync-corsa').addEventListener('click', async () => {
+  elCorsaFonte.textContent = 'Sincronizzazione in corso...';
+  const errore = await sincronizzaConEsito();
+  if (errore) elCorsaFonte.textContent = errore;
+});
+
+mostraCorsa();
 
 
 // ===================================================
@@ -729,6 +1186,9 @@ campoFileBackup.addEventListener('change', async () => {
 
 mostraUltimoBackup();
 
+
+// Sincronizzazione automatica con Intervals.icu (dopo che tutte le schede sono pronte)
+sincronizzaSeServe();
 
 // Registra il service worker per il funzionamento offline
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});

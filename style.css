@@ -7,6 +7,7 @@
   --testo: #ffffff;
   --testo-secondario: #8e8e93;
   --accento: #2f80ed;
+  --accento-chiaro: #6aa6f5;
   --successo: #34c759;
   --pericolo: #ff453a;
   --altezza-tabbar: 64px;
@@ -65,6 +66,15 @@ main {
   gap: 14px;
 }
 .card.centro { text-align: center; }
+
+.vuoto {
+  margin: 24px 20px;
+  padding: 32px 20px;
+  background: var(--superficie);
+  border-radius: 14px;
+  color: var(--testo-secondario);
+  text-align: center;
+}
 
 .etichetta {
   font-size: 13px;
@@ -191,6 +201,8 @@ main {
   cursor: pointer;
 }
 
+.centrato { text-align: center; }
+
 /* Allenamento in corso */
 .cronometro {
   font-size: 52px;
@@ -202,7 +214,7 @@ main {
   font-weight: 600;
 }
 
-/* Riquadri del riepilogo (griglia 2 x 2) */
+/* Riquadri del riepilogo (griglia a 2 colonne) */
 .griglia-stat {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -220,12 +232,135 @@ main {
 .stat-valore {
   font-size: 24px;
   font-weight: 700;
-  font-variant-numeric: tabular-nums;
 }
 .stat-etichetta {
   font-size: 13px;
   color: var(--testo-secondario);
 }
+
+/* Riquadro "ultima corsa" con il numero principale grande */
+.hero { gap: 8px; }
+.hero-valore {
+  font-size: 52px;
+  font-weight: 700;
+  line-height: 1.05;
+}
+.hero-unita {
+  margin-left: 6px;
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--testo-secondario);
+}
+.hero-righe {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  font-size: 15px;
+  color: var(--testo-secondario);
+}
+.hero-righe b {
+  color: var(--testo);
+  font-weight: 600;
+}
+
+/* Grafici */
+.grafico {
+  margin: 0 20px;
+  padding: 12px 10px 8px;
+  background: var(--superficie);
+  border-radius: 14px;
+}
+.grafico svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.grafico-info {
+  min-height: 20px;
+  margin-bottom: 6px;
+  font-size: 14px;
+  color: var(--testo-secondario);
+  text-align: center;
+}
+.grafico .barra { fill: var(--accento); }
+.grafico .barra.selezionata { fill: var(--accento-chiaro); }
+.grafico .griglia { stroke: var(--bordo); stroke-width: 1; }
+.grafico .asse {
+  fill: var(--testo-secondario);
+  font-size: 11px;
+  font-family: -apple-system, system-ui, sans-serif;
+}
+.grafico .linea {
+  fill: none;
+  stroke: var(--accento);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.grafico .punto {
+  fill: var(--accento);
+  stroke: var(--superficie);
+  stroke-width: 2;
+}
+.grafico .punto.selezionato { fill: var(--accento-chiaro); }
+.grafico .bersaglio {
+  fill: transparent;
+  cursor: pointer;
+}
+
+/* Dettaglio: coppie etichetta / valore */
+.dettagli {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.dettaglio {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  background: var(--superficie-2);
+  border-radius: 10px;
+}
+.dettaglio-etichetta {
+  font-size: 12px;
+  color: var(--testo-secondario);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.dettaglio-valore {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+/* Tempo nelle zone di frequenza cardiaca */
+.zone {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.zona {
+  display: grid;
+  grid-template-columns: 96px 1fr 52px;
+  white-space: nowrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--testo-secondario);
+  font-variant-numeric: tabular-nums;
+}
+.zona-traccia {
+  height: 10px;
+  background: var(--superficie-2);
+  border-radius: 5px;
+  overflow: hidden;
+}
+.zona-riempimento {
+  height: 100%;
+  background: var(--accento);
+  border-radius: 5px;
+}
+.zona-valore { text-align: right; }
 
 /* Messaggi */
 .esito {
@@ -284,7 +419,7 @@ main {
   white-space: nowrap;
 }
 
-/* Pannello che si apre dal basso (modifica allenamento) */
+/* Pannello che si apre dal basso */
 .velo {
   position: fixed;
   inset: 0;
@@ -305,7 +440,7 @@ main {
   border-radius: 18px 18px 0 0;
 }
 .foglio h3 {
-  margin: 0 0 4px;
+  margin: 0;
   font-size: 20px;
 }
 .foglio .esito { margin: 0; }

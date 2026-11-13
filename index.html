@@ -118,6 +118,76 @@
       <p id="storico-aiuto" class="nota">Tocca un allenamento per modificarlo o eliminarlo.</p>
     </section>
 
+    <!-- ========== Vista Corsa ========== -->
+    <section id="vista-corsa" class="vista">
+      <header class="titolo">
+        <h1>Corsa</h1>
+      </header>
+
+      <div id="corsa-vuoto" class="vuoto" hidden>
+        Nessuna corsa disponibile. Collega Intervals.icu in Impostazioni e tocca "Sincronizza ora".
+      </div>
+
+      <div id="corsa-contenuto">
+        <!-- Ultima corsa (riempito dal codice) -->
+        <div id="corsa-ultima" class="card hero"></div>
+
+        <!-- Riepilogo numerico -->
+        <h2 class="sezione">Riepilogo</h2>
+        <div class="griglia-stat">
+          <div class="stat">
+            <span id="stat-corsa-sett-km" class="stat-valore">0 km</span>
+            <span class="stat-etichetta">Km questa settimana</span>
+          </div>
+          <div class="stat">
+            <span id="stat-corsa-sett-num" class="stat-valore">0</span>
+            <span class="stat-etichetta">Corse questa settimana</span>
+          </div>
+          <div class="stat">
+            <span id="stat-corsa-mese-km" class="stat-valore">0 km</span>
+            <span class="stat-etichetta">Km questo mese</span>
+          </div>
+          <div class="stat">
+            <span id="stat-corsa-mese-passo" class="stat-valore">n/d</span>
+            <span class="stat-etichetta">Passo medio del mese</span>
+          </div>
+          <div class="stat">
+            <span id="stat-corsa-mese-fc" class="stat-valore">n/d</span>
+            <span class="stat-etichetta">FC media del mese</span>
+          </div>
+          <div class="stat">
+            <span id="stat-corsa-mese-disl" class="stat-valore">0 m</span>
+            <span class="stat-etichetta">Dislivello del mese</span>
+          </div>
+        </div>
+
+        <!-- Grafico: km per settimana -->
+        <h2 class="sezione">Km per settimana</h2>
+        <div class="grafico">
+          <div id="info-km" class="grafico-info"></div>
+          <div id="grafico-km"></div>
+        </div>
+
+        <!-- Grafico: passo medio delle ultime corse -->
+        <h2 class="sezione">Passo medio per corsa</h2>
+        <div class="grafico">
+          <div id="info-passo" class="grafico-info"></div>
+          <div id="grafico-passo"></div>
+        </div>
+        <p class="nota">Più in alto = più veloce. Escluse le registrazioni con passo anomalo.</p>
+
+        <!-- Storico -->
+        <h2 class="sezione">Storico corse</h2>
+        <ul id="corsa-storico" class="lista"></ul>
+        <p class="nota">Tocca una corsa per tutti i dettagli.</p>
+      </div>
+
+      <p id="corsa-fonte" class="nota"></p>
+      <div class="centrato">
+        <button id="btn-sync-corsa" class="btn-testo">Sincronizza ora</button>
+      </div>
+    </section>
+
     <!-- ========== Vista Impostazioni ========== -->
     <section id="vista-impostazioni" class="vista">
       <header class="titolo">
@@ -178,6 +248,18 @@
     </form>
   </div>
 
+  <!-- Pannello di dettaglio corsa (si apre dal basso) -->
+  <div id="velo-corsa" class="velo" hidden>
+    <div class="foglio">
+      <h3 id="corsa-dett-titolo"></h3>
+      <span id="corsa-dett-data" class="testo-sec"></span>
+      <div id="corsa-dett-valori" class="dettagli"></div>
+      <span id="corsa-dett-zone-titolo" class="etichetta">Tempo nelle zone di frequenza cardiaca</span>
+      <div id="corsa-dett-zone" class="zone"></div>
+      <button type="button" id="btn-corsa-chiudi" class="btn-secondario">Chiudi</button>
+    </div>
+  </div>
+
   <!-- Barra delle schede in basso -->
   <nav class="tabbar">
     <button class="tab" data-vista="sveglia">
@@ -198,6 +280,12 @@
         <path d="M6 12h12"/>
       </svg>
       <span>Palestra</span>
+    </button>
+    <button class="tab" data-vista="corsa">
+      <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 12h4l3-7 4 14 3-7h4"/>
+      </svg>
+      <span>Corsa</span>
     </button>
     <button class="tab" data-vista="impostazioni">
       <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
