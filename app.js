@@ -311,3 +311,5 @@ formSalva.addEventListener('submit', evento => {
 });
 
 aggiornaPalestra();
+   // Registra il service worker per il funzionamento offline
+   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
