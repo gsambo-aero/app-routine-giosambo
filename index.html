@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+	<meta name="apple-mobile-web-app-capable" content="yes">
+	<meta name="apple-mobile-web-app-title" content="Routine">
+	<title>App Routine Giosambo</title>
+	<style>
+		body {
+			font-family: -apple-system, system-ui, sans-serif;
+			background: #111;
+			color: #fff;
+			margin: 0;
+			min-height: 100vh;
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			justify-content: center;
+			text-align: center;
+		}
+		p { color: #aaa; }
+	</style>
+</head>
+<body>
+	<h1>App Routine Giosambo</h1>
+	<p id="modalita"></p>
+
+	<script>
+		// Controlla se la pagina è aperta come app dalla schermata Home o nel browser
+		const standalone =
+			window.navigator.standalone === true ||
+			window.matchMedia('(display-mode: standalone)').matches;
+
+		document.getElementById('modalita').textContent = standalone
+			? 'Modalità app: attiva'
+			: 'Modalità app: non attiva (browser)';
+	</script>
+</body>
+</html>
