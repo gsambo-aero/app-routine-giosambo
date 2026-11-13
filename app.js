@@ -580,6 +580,7 @@ async function sincronizza() {
 function aggiornaSchedeSalute() {
   mostraStatoSync();
   mostraCorsa();
+  mostraSonno();
 }
 
 // Sincronizzazione avviata da un pulsante: mostra l'esito in Impostazioni.
@@ -710,7 +711,8 @@ function disegnaColonne(contenitore, info, punti, formattaAsse, testoIniziale) {
   const L = 340, A = 170, sx = 34, dx = 8, su = 10, giu = 24;
   const largh = L - sx - dx, alt = A - su - giu;
   const massimo = Math.max(...punti.map(p => p.valore), 0);
-  const scala = massimo > 0 ? massimo : 1;
+  // Fondo scala arrotondato (numero pari sotto 20, decina sopra) così le tacche sono numeri tondi
+  const scala = massimo <= 0 ? 2 : massimo < 20 ? Math.ceil(massimo / 2) * 2 : Math.ceil(massimo / 10) * 10;
 
   const svg = elementoSvg('svg', { viewBox: '0 0 ' + L + ' ' + A, role: 'img' });
 
@@ -1077,6 +1079,191 @@ document.getElementById('btn-sync-corsa').addEventListener('click', async () => 
 });
 
 mostraCorsa();
+
+
+// ===================================================
+// Sonno: dati notturni del Suunto scaricati da Intervals.icu
+// ===================================================
+
+const ETICHETTE_QUALITA = { 1: 'eccellente', 2: 'buona', 3: 'discreta', 4: 'scarsa' };
+const NOTTI_GRAFICO_SONNO = 14;
+const NOTTI_GRAFICI_RECUPERO = 30;
+
+const elSonnoVuoto = document.getElementById('sonno-vuoto');
+const elSonnoContenuto = document.getElementById('sonno-contenuto');
+const elSonnoUltima = document.getElementById('sonno-ultima');
+const elSonnoStorico = document.getElementById('sonno-storico');
+const elSonnoFonte = document.getElementById('sonno-fonte');
+
+// "2026-11-10" -> data locale (a mezzogiorno, per evitare problemi di fuso orario)
+function giornoLocale(testo) {
+  const [a, m, g] = testo.split('-').map(Number);
+  return new Date(a, m - 1, g, 12);
+}
+
+// Tutte le voci giornaliere scaricate, dalla più recente
+function leggiNotti() {
+  const dati = leggiJSON(CHIAVE_DATI_SALUTE, { notti: {}, attivita: {} });
+  return Object.values(dati.notti).sort((a, b) => b.data.localeCompare(a.data));
+}
+
+// Media di un campo sulle voci che lo hanno (null se nessuna)
+function mediaCampo(voci, campo) {
+  const valide = voci.filter(v => typeof v[campo] === 'number');
+  return valide.length ? valide.reduce((t, v) => t + v[campo], 0) / valide.length : null;
+}
+
+// Riquadro "ultima notte"
+function mostraUltimaNotte(n) {
+  elSonnoUltima.innerHTML = '';
+
+  const etichetta = document.createElement('span');
+  etichetta.className = 'etichetta';
+  etichetta.textContent = 'Ultima notte · risveglio ' + formattaData(giornoLocale(n.data));
+
+  // Durata scritta come "6 h 33 min", con le unità più piccole e grigie
+  const minuti = Math.round(n.sonnoSec / 60);
+  const valore = document.createElement('div');
+  valore.className = 'hero-valore';
+  [[Math.floor(minuti / 60), 'h'], [minuti % 60, 'min']].forEach(([numero, unita], i) => {
+    valore.append((i > 0 ? ' ' : '') + numero);
+    const u = document.createElement('span');
+    u.className = 'hero-unita';
+    u.textContent = unita;
+    valore.append(u);
+  });
+
+  const righe = document.createElement('div');
+  righe.className = 'hero-righe';
+  const qualita = ETICHETTE_QUALITA[n.qualitaSonno];
+  [
+    ['Punteggio', n.punteggioSonno ? Math.round(n.punteggioSonno) + (qualita ? ' (' + qualita + ')' : '') : 'n/d'],
+    ['FC a riposo', valoreOnd(n.fcRiposo, ' bpm')],
+    ['HRV', valoreOnd(n.hrv, ' ms')],
+    ['FC nel sonno', valoreOnd(n.fcMediaSonno, ' bpm')],
+    ['SpO2', valoreOnd(n.spo2, '%')]
+  ].forEach(([nome, testo]) => {
+    const voce = document.createElement('span');
+    voce.append(nome + ' ');
+    const b = document.createElement('b');
+    b.textContent = testo;
+    voce.append(b);
+    righe.append(voce);
+  });
+
+  elSonnoUltima.append(etichetta, valore, righe);
+}
+
+// Le 4 medie degli ultimi 7 giorni
+function mostraMedieSonno(notti) {
+  const limite = new Date();
+  limite.setHours(0, 0, 0, 0);
+  limite.setDate(limite.getDate() - 6);
+  const recenti = notti.filter(n => giornoLocale(n.data) >= limite);
+
+  const sonno = mediaCampo(recenti, 'sonnoSec');
+  const punteggio = mediaCampo(recenti, 'punteggioSonno');
+  document.getElementById('stat-sonno-media').textContent = sonno ? formattaDurata(sonno * 1000) : 'n/d';
+  document.getElementById('stat-sonno-punteggio').textContent = valoreOnd(punteggio, '');
+  document.getElementById('stat-sonno-fc').textContent = valoreOnd(mediaCampo(recenti, 'fcRiposo'), ' bpm');
+  document.getElementById('stat-sonno-hrv').textContent = valoreOnd(mediaCampo(recenti, 'hrv'), ' ms');
+
+  const conSonno = recenti.filter(n => n.sonnoSec).length;
+  document.getElementById('sonno-notti-7').textContent = 'Notti con dati di sonno: ' + conSonno + ' su 7.';
+}
+
+// Colonne con le ore di sonno delle ultime notti (anche quelle senza dati, a zero)
+function mostraGraficoSonno(notti) {
+  const perGiorno = {};
+  notti.forEach(n => { perGiorno[n.data] = n; });
+
+  const punti = [];
+  for (let i = NOTTI_GRAFICO_SONNO - 1; i >= 0; i--) {
+    const giorno = new Date();
+    giorno.setDate(giorno.getDate() - i);
+    const n = perGiorno[dataPerNomeFile(giorno)];
+    const secondi = n && n.sonnoSec ? n.sonnoSec : 0;
+    punti.push({
+      etichetta: String(giorno.getDate()),
+      valore: secondi / 3600,
+      dettaglio: 'Risveglio ' + formattaData(giorno) + ': ' +
+        (secondi ? formattaDurata(secondi * 1000) + (n.punteggioSonno ? ' · punteggio ' + Math.round(n.punteggioSonno) : '') : 'nessun dato')
+    });
+  }
+  disegnaColonne(
+    document.getElementById('grafico-sonno'),
+    document.getElementById('info-sonno'),
+    punti,
+    v => (Math.round(v * 10) / 10).toString().replace('.', ',') + ' h',
+    'Tocca una colonna per i dettagli'
+  );
+}
+
+// Linea di un valore notturno (HRV o FC a riposo) nelle ultime notti che lo hanno
+function mostraGraficoRecupero(notti, campo, idGrafico, idInfo, unita) {
+  const contenitore = document.getElementById(idGrafico);
+  const info = document.getElementById(idInfo);
+  const scelte = notti.filter(n => typeof n[campo] === 'number').slice(0, NOTTI_GRAFICI_RECUPERO).reverse();
+
+  if (scelte.length === 0) {
+    contenitore.innerHTML = '';
+    info.textContent = 'Ancora nessun dato.';
+    return;
+  }
+
+  const punti = scelte.map(n => ({
+    etichetta: giornoLocale(n.data).toLocaleDateString('it-IT', { day: 'numeric', month: 'numeric' }),
+    valore: n[campo],
+    dettaglio: 'Risveglio ' + formattaData(giornoLocale(n.data)) + ': ' + Math.round(n[campo]) + unita
+  }));
+  disegnaLinea(contenitore, info, punti, v => String(Math.round(v)), false, 'Tocca un punto per i dettagli');
+}
+
+// Storico: una riga per notte con dati di sonno
+function mostraStoricoNotti(notti) {
+  elSonnoStorico.innerHTML = '';
+  notti.filter(n => n.sonnoSec).forEach(n => {
+    const parti = [];
+    if (n.punteggioSonno) parti.push('punteggio ' + Math.round(n.punteggioSonno));
+    if (n.fcRiposo) parti.push('FC ' + Math.round(n.fcRiposo));
+    if (n.hrv) parti.push('HRV ' + Math.round(n.hrv));
+    const { riga } = creaRiga(formattaData(giornoLocale(n.data)), parti.join(' · ') || 'solo durata');
+    const destra = document.createElement('div');
+    destra.className = 'riga-valore';
+    destra.textContent = formattaDurata(n.sonnoSec * 1000);
+    riga.append(destra);
+    elSonnoStorico.append(riga);
+  });
+}
+
+// Aggiorna tutta la scheda Sonno
+function mostraSonno() {
+  const notti = leggiNotti();
+  const conSonno = notti.filter(n => n.sonnoSec);
+
+  elSonnoVuoto.hidden = conSonno.length > 0;
+  elSonnoContenuto.hidden = conSonno.length === 0;
+
+  const ultima = localStorage.getItem(CHIAVE_ULTIMA_SYNC);
+  elSonnoFonte.textContent = 'Dati del Suunto tramite Intervals.icu' +
+    (ultima ? ' · aggiornati ' + formattaData(ultima) + ' alle ' + formattaOra(ultima) : '');
+
+  if (conSonno.length === 0) return;
+  mostraUltimaNotte(conSonno[0]);
+  mostraMedieSonno(notti);
+  mostraGraficoSonno(notti);
+  mostraGraficoRecupero(notti, 'hrv', 'grafico-hrv', 'info-hrv', ' ms');
+  mostraGraficoRecupero(notti, 'fcRiposo', 'grafico-fc-riposo', 'info-fc-riposo', ' bpm');
+  mostraStoricoNotti(notti);
+}
+
+document.getElementById('btn-sync-sonno').addEventListener('click', async () => {
+  elSonnoFonte.textContent = 'Sincronizzazione in corso...';
+  const errore = await sincronizzaConEsito();
+  if (errore) elSonnoFonte.textContent = errore;
+});
+
+mostraSonno();
 
 
 // ===================================================
