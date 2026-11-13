@@ -1,40 +1,58 @@
 <!DOCTYPE html>
 <html lang="it">
 <head>
-	<meta charset="UTF-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-	<meta name="apple-mobile-web-app-capable" content="yes">
-	<meta name="apple-mobile-web-app-title" content="Routine">
-	<title>App Routine Giosambo</title>
-	<style>
-		body {
-			font-family: -apple-system, system-ui, sans-serif;
-			background: #111;
-			color: #fff;
-			margin: 0;
-			min-height: 100vh;
-			display: flex;
-			flex-direction: column;
-			align-items: center;
-			justify-content: center;
-			text-align: center;
-		}
-		p { color: #aaa; }
-	</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Routine">
+  <meta name="theme-color" content="#0f0f10">
+  <title>App Routine Giosambo</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-	<h1>App Routine Giosambo</h1>
-	<p id="modalita"></p>
 
-	<script>
-		// Controlla se la pagina è aperta come app dalla schermata Home o nel browser
-		const standalone =
-			window.navigator.standalone === true ||
-			window.matchMedia('(display-mode: standalone)').matches;
+  <main>
+    <!-- Vista Sveglia -->
+    <section id="vista-sveglia" class="vista">
+      <header class="titolo">
+        <h1>Sveglia</h1>
+      </header>
+      <div class="vuoto">Qui imposterai le sveglie.</div>
+    </section>
 
-		document.getElementById('modalita').textContent = standalone
-			? 'Modalità app: attiva'
-			: 'Modalità app: non attiva (browser)';
-	</script>
+    <!-- Vista Palestra -->
+    <section id="vista-palestra" class="vista">
+      <header class="titolo">
+        <h1>Palestra</h1>
+      </header>
+      <div class="vuoto">Qui troverai allenamenti, esercizi e storico.</div>
+    </section>
+  </main>
+
+  <!-- Barra delle schede in basso -->
+  <nav class="tabbar">
+    <button class="tab" data-vista="sveglia">
+      <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="13" r="8"/>
+        <path d="M12 9v4l2 2"/>
+        <path d="M5 3L2 6"/>
+        <path d="M22 6l-3-3"/>
+      </svg>
+      <span>Sveglia</span>
+    </button>
+    <button class="tab" data-vista="palestra">
+      <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M6 7v10"/>
+        <path d="M18 7v10"/>
+        <path d="M3 10v4"/>
+        <path d="M21 10v4"/>
+        <path d="M6 12h12"/>
+      </svg>
+      <span>Palestra</span>
+    </button>
+  </nav>
+
+  <script src="app.js"></script>
 </body>
 </html>
