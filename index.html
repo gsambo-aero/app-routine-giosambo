@@ -13,7 +13,7 @@
 <body>
 
   <main>
-    <!-- Vista Sveglia -->
+    <!-- ========== Vista Sveglia ========== -->
     <section id="vista-sveglia" class="vista">
       <header class="titolo">
         <h1>Sveglia</h1>
@@ -35,12 +35,48 @@
       <p class="nota">La sveglia viene creata nell'app Orologio. Per disattivarla o eliminarla usa Orologio.</p>
     </section>
 
-    <!-- Vista Palestra -->
+    <!-- ========== Vista Palestra ========== -->
     <section id="vista-palestra" class="vista">
       <header class="titolo">
         <h1>Palestra</h1>
       </header>
-      <div class="vuoto">Qui troverai allenamenti, esercizi e storico.</div>
+
+      <!-- Stato 1: nessun allenamento in corso -->
+      <div id="palestra-inattivo" class="card">
+        <button id="btn-inizia" class="btn-primario btn-grande">Inizia allenamento</button>
+      </div>
+
+      <!-- Stato 2: allenamento in corso -->
+      <div id="palestra-incorso" class="card centro" hidden>
+        <span class="etichetta">Allenamento in corso</span>
+        <div id="cronometro" class="cronometro">00:00:00</div>
+        <span id="inizio-alle" class="testo-sec"></span>
+        <button id="btn-apri-hevy" class="btn-secondario">Apri Hevy</button>
+        <button id="btn-termina" class="btn-primario">Termina allenamento</button>
+        <button id="btn-annulla" class="btn-testo btn-rosso">Annulla allenamento</button>
+      </div>
+
+      <!-- Stato 3: salvataggio dopo "Termina" -->
+      <form id="palestra-salva" class="card" hidden>
+        <span class="etichetta">Riepilogo</span>
+        <div id="riepilogo-durata" class="riepilogo-durata"></div>
+        <label class="campo">
+          <span>Nome</span>
+          <input type="text" id="allenamento-nome" list="nomi-allenamenti" placeholder="es. Push, Gambe" maxlength="40" autocomplete="off" required>
+        </label>
+        <datalist id="nomi-allenamenti"></datalist>
+        <label class="campo">
+          <span>Nota</span>
+          <textarea id="allenamento-nota" rows="3" maxlength="300" placeholder="Opzionale"></textarea>
+        </label>
+        <button type="submit" class="btn-primario">Salva allenamento</button>
+        <button type="button" id="btn-riprendi" class="btn-testo">Torna all'allenamento</button>
+      </form>
+
+      <!-- Storico -->
+      <h2 class="sezione">Storico</h2>
+      <ul id="storico" class="lista"></ul>
+      <p id="storico-vuoto" class="nota">Nessun allenamento salvato.</p>
     </section>
   </main>
 
