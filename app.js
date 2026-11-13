@@ -98,6 +98,65 @@ function creaRiga(titoloTesto, sottoTesto) {
   return { riga, sinistra };
 }
 
+// Scrive un valore con le unità di misura più piccole: "12,3 km" -> 12,3 + <span class="unita">km</span>.
+// Le parti fatte di lettere, "%" o "/" (km, min, bpm, /km, km/h...) diventano unità.
+function scriviValore(el, testo) {
+  el.textContent = '';
+  testo = String(testo);
+  if (testo === 'n/d') {
+    el.textContent = testo;
+    return;
+  }
+  testo.split(/(\s?[A-Za-z%/]+)/).forEach(parte => {
+    if (!parte) return;
+    if (/^\s?[A-Za-z%/]+$/.test(parte)) {
+      const unita = document.createElement('span');
+      unita.className = 'unita';
+      unita.textContent = parte.trim();
+      el.append(unita);
+    } else {
+      el.append(parte.replace(/^\s+/, '')); // lo spazio lo dà già il margine dell'unità
+    }
+  });
+}
+
+// Griglia di "strumenti" del riquadro principale: voci = [[etichetta, valore, nota?], ...]
+function creaStrumenti(voci) {
+  const griglia = document.createElement('div');
+  griglia.className = 'strumenti';
+  voci.forEach(([nome, testo, nota]) => {
+    const strumento = document.createElement('div');
+    strumento.className = 'strumento';
+    const etichetta = document.createElement('span');
+    etichetta.className = 'strumento-etichetta';
+    etichetta.textContent = nome;
+    const valore = document.createElement('span');
+    valore.className = 'strumento-valore';
+    scriviValore(valore, testo);
+    strumento.append(etichetta, valore);
+    if (nota) {
+      const elNota = document.createElement('span');
+      elNota.className = 'strumento-nota';
+      elNota.textContent = nota;
+      strumento.append(elNota);
+    }
+    griglia.append(strumento);
+  });
+  return griglia;
+}
+
+// Data di oggi in cima a ogni scheda ("sab 14 nov", in maiuscolo grazie allo stile)
+function mostraDataOggi() {
+  const oggi = new Date().toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' });
+  document.querySelectorAll('.data-oggi').forEach(el => { el.textContent = oggi; });
+}
+
+mostraDataOggi();
+// L'app può restare aperta in sottofondo per giorni: quando torna in primo piano aggiorna la data
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) mostraDataOggi();
+});
+
 
 // ===================================================
 // Navigazione tra le schede in basso
@@ -109,6 +168,7 @@ const viste = document.querySelectorAll('.vista');
 function mostraVista(nome) {
   viste.forEach(v => v.classList.toggle('attiva', v.id === 'vista-' + nome));
   tabs.forEach(t => t.classList.toggle('attiva', t.dataset.vista === nome));
+  document.body.dataset.vista = nome; // lo stile usa questo valore per il colore della sezione
   localStorage.setItem('ultimaVista', nome);
 }
 
@@ -299,9 +359,9 @@ function mostraRiepilogo(allenamenti) {
   const media = diMese.length > 0 ? tempoMese / diMese.length : 0;
 
   elStatSettNum.textContent = diSettimana.length;
-  elStatSettTempo.textContent = formattaDurata(tempoSettimana);
+  scriviValore(elStatSettTempo, formattaDurata(tempoSettimana));
   elStatMeseNum.textContent = diMese.length;
-  elStatMedia.textContent = formattaDurata(media);
+  scriviValore(elStatMedia, formattaDurata(media));
 }
 
 // Disegna l'elenco degli allenamenti salvati, dal più recente
@@ -844,34 +904,30 @@ function disegnaLinea(contenitore, info, punti, formattaAsse, invertito, testoIn
 function mostraUltimaCorsa(c) {
   elCorsaUltima.innerHTML = '';
 
+  // Riga in alto: etichetta a sinistra, invito ai dettagli a destra
+  const testa = document.createElement('div');
+  testa.className = 'hero-testa';
   const etichetta = document.createElement('span');
   etichetta.className = 'etichetta';
-  etichetta.textContent = 'Ultima corsa · ' + formattaData(c.inizio) + ' alle ' + formattaOra(c.inizio);
+  etichetta.textContent = 'Ultima corsa · ' + formattaData(c.inizio) + ' · ' + formattaOra(c.inizio);
+  const link = document.createElement('span');
+  link.className = 'hero-link';
+  link.textContent = 'Dettagli ›';
+  testa.append(etichetta, link);
 
+  // Numero principale: i km
   const valore = document.createElement('div');
   valore.className = 'hero-valore';
-  valore.textContent = formattaKm(c.distanzaM);
-  const unita = document.createElement('span');
-  unita.className = 'hero-unita';
-  unita.textContent = 'km';
-  valore.append(unita);
+  scriviValore(valore, formattaKm(c.distanzaM) + ' km');
 
-  const righe = document.createElement('div');
-  righe.className = 'hero-righe';
-  [
-    ['Durata', formattaDurata((c.movimentoSec || c.durataSec) * 1000)],
+  // Strumenti: passo, battiti, tempo
+  const strumenti = creaStrumenti([
     ['Passo', formattaPasso(passoSec(c))],
-    ['FC media', valoreOnd(c.fcMedia, ' bpm')]
-  ].forEach(([nome, testo]) => {
-    const voce = document.createElement('span');
-    voce.append(nome + ' ');
-    const b = document.createElement('b');
-    b.textContent = testo;
-    voce.append(b);
-    righe.append(voce);
-  });
+    ['FC media', valoreOnd(c.fcMedia, ' bpm')],
+    ['Tempo', formattaDurata((c.movimentoSec || c.durataSec) * 1000)]
+  ]);
 
-  elCorsaUltima.append(etichetta, valore, righe);
+  elCorsaUltima.append(testa, valore, strumenti);
   elCorsaUltima.onclick = () => apriDettaglioCorsa(c);
 }
 
@@ -884,16 +940,16 @@ function mostraRiepilogoCorsa(corse) {
 
   const somma = (elenco, campo) => elenco.reduce((t, c) => t + (c[campo] || 0), 0);
 
-  document.getElementById('stat-corsa-sett-km').textContent = formattaKm(somma(diSettimana, 'distanzaM'), 1) + ' km';
+  scriviValore(document.getElementById('stat-corsa-sett-km'), formattaKm(somma(diSettimana, 'distanzaM'), 1) + ' km');
   document.getElementById('stat-corsa-sett-num').textContent = diSettimana.length;
-  document.getElementById('stat-corsa-mese-km').textContent = formattaKm(somma(diMese, 'distanzaM'), 1) + ' km';
-  document.getElementById('stat-corsa-mese-disl').textContent = Math.round(somma(diMese, 'dislivelloM')) + ' m';
+  scriviValore(document.getElementById('stat-corsa-mese-km'), formattaKm(somma(diMese, 'distanzaM'), 1) + ' km');
+  scriviValore(document.getElementById('stat-corsa-mese-disl'), Math.round(somma(diMese, 'dislivelloM')) + ' m');
 
   // Passo medio del mese: tempo totale / km totali (solo corse con passo plausibile)
   const valide = diMese.filter(passoValido);
   const km = somma(valide, 'distanzaM') / 1000;
   const tempo = valide.reduce((t, c) => t + (c.movimentoSec || c.durataSec), 0);
-  document.getElementById('stat-corsa-mese-passo').textContent = km > 0 ? formattaPasso(tempo / km) : 'n/d';
+  scriviValore(document.getElementById('stat-corsa-mese-passo'), km > 0 ? formattaPasso(tempo / km) : 'n/d');
 
   // FC media del mese, pesata sulla durata di ogni corsa
   const conFc = diMese.filter(c => c.fcMedia);
@@ -901,7 +957,7 @@ function mostraRiepilogoCorsa(corse) {
   const fc = pesoTot > 0
     ? conFc.reduce((t, c) => t + c.fcMedia * (c.movimentoSec || c.durataSec), 0) / pesoTot
     : null;
-  document.getElementById('stat-corsa-mese-fc').textContent = valoreOnd(fc, ' bpm');
+  scriviValore(document.getElementById('stat-corsa-mese-fc'), valoreOnd(fc, ' bpm'));
 }
 
 // Grafico dei km nelle ultime settimane (da lunedì a domenica)
@@ -1001,7 +1057,7 @@ function apriDettaglioCorsa(c) {
     e.textContent = nome;
     const v = document.createElement('span');
     v.className = 'dettaglio-valore';
-    v.textContent = testo;
+    scriviValore(v, testo);
     box.append(e, v);
     elValori.append(box);
   });
@@ -1121,37 +1177,23 @@ function mostraUltimaNotte(n) {
   etichetta.className = 'etichetta';
   etichetta.textContent = 'Ultima notte · risveglio ' + formattaData(giornoLocale(n.data));
 
-  // Durata scritta come "6 h 33 min", con le unità più piccole e grigie
+  // Numero principale: la durata, scritta come "6 h 33 min" con le unità più piccole
   const minuti = Math.round(n.sonnoSec / 60);
   const valore = document.createElement('div');
   valore.className = 'hero-valore';
-  [[Math.floor(minuti / 60), 'h'], [minuti % 60, 'min']].forEach(([numero, unita], i) => {
-    valore.append((i > 0 ? ' ' : '') + numero);
-    const u = document.createElement('span');
-    u.className = 'hero-unita';
-    u.textContent = unita;
-    valore.append(u);
-  });
+  scriviValore(valore, Math.floor(minuti / 60) + ' h ' + (minuti % 60) + ' min');
 
-  const righe = document.createElement('div');
-  righe.className = 'hero-righe';
+  // Strumenti: punteggio (con la qualità sotto), poi i valori di recupero
   const qualita = ETICHETTE_QUALITA[n.qualitaSonno];
-  [
-    ['Punteggio', n.punteggioSonno ? Math.round(n.punteggioSonno) + (qualita ? ' (' + qualita + ')' : '') : 'n/d'],
-    ['FC a riposo', valoreOnd(n.fcRiposo, ' bpm')],
+  const strumenti = creaStrumenti([
+    ['Punteggio', n.punteggioSonno ? String(Math.round(n.punteggioSonno)) : 'n/d', qualita],
     ['HRV', valoreOnd(n.hrv, ' ms')],
-    ['FC nel sonno', valoreOnd(n.fcMediaSonno, ' bpm')],
+    ['FC riposo', valoreOnd(n.fcRiposo, ' bpm')],
+    ['FC sonno', valoreOnd(n.fcMediaSonno, ' bpm')],
     ['SpO2', valoreOnd(n.spo2, '%')]
-  ].forEach(([nome, testo]) => {
-    const voce = document.createElement('span');
-    voce.append(nome + ' ');
-    const b = document.createElement('b');
-    b.textContent = testo;
-    voce.append(b);
-    righe.append(voce);
-  });
+  ]);
 
-  elSonnoUltima.append(etichetta, valore, righe);
+  elSonnoUltima.append(etichetta, valore, strumenti);
 }
 
 // Le 4 medie degli ultimi 7 giorni
@@ -1163,10 +1205,10 @@ function mostraMedieSonno(notti) {
 
   const sonno = mediaCampo(recenti, 'sonnoSec');
   const punteggio = mediaCampo(recenti, 'punteggioSonno');
-  document.getElementById('stat-sonno-media').textContent = sonno ? formattaDurata(sonno * 1000) : 'n/d';
+  scriviValore(document.getElementById('stat-sonno-media'), sonno ? formattaDurata(sonno * 1000) : 'n/d');
   document.getElementById('stat-sonno-punteggio').textContent = valoreOnd(punteggio, '');
-  document.getElementById('stat-sonno-fc').textContent = valoreOnd(mediaCampo(recenti, 'fcRiposo'), ' bpm');
-  document.getElementById('stat-sonno-hrv').textContent = valoreOnd(mediaCampo(recenti, 'hrv'), ' ms');
+  scriviValore(document.getElementById('stat-sonno-fc'), valoreOnd(mediaCampo(recenti, 'fcRiposo'), ' bpm'));
+  scriviValore(document.getElementById('stat-sonno-hrv'), valoreOnd(mediaCampo(recenti, 'hrv'), ' ms'));
 
   const conSonno = recenti.filter(n => n.sonnoSec).length;
   document.getElementById('sonno-notti-7').textContent = 'Notti con dati di sonno: ' + conSonno + ' su 7.';

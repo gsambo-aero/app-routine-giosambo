@@ -1,18 +1,39 @@
+/* =====================================================
+   Routine: stile "cruscotto di volo"
+   Fondo quasi nero, riquadri con bordo sottile, numeri
+   in carattere monospazio come negli strumenti di bordo.
+   Ogni sezione ha il suo colore di accento.
+   ===================================================== */
+
 /* Colori e misure comuni */
 :root {
-  --sfondo: #0f0f10;
-  --superficie: #1c1c1e;
-  --superficie-2: #2c2c2e;
-  --bordo: #2c2c2e;
-  --testo: #ffffff;
-  --testo-secondario: #8e8e93;
-  --accento: #2f80ed;
-  --accento-chiaro: #6aa6f5;
-  --successo: #34c759;
-  --pericolo: #ff453a;
-  --altezza-tabbar: 64px;
+  --sfondo: #07090c;
+  --superficie: #10141a;
+  --superficie-2: #171c23;
+  --bordo: #1f2630;
+  --bordo-forte: #2a323d;
+  --testo: #e8edf2;
+  --testo-secondario: #7d8794;
+  --testo-terziario: #5d6773;
+  --successo: #4ade80;
+  --pericolo: #ff5a4f;
+  --su-accento: #07090c; /* testo sopra un pulsante colorato */
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --altezza-tabbar: 60px;
+
+  /* Colore di accento predefinito (cambia con la scheda attiva, vedi sotto) */
+  --accento: #22d3ee;
+  --accento-chiaro: #67e8f9;
+
   color-scheme: dark; /* selettori di sistema (es. orario) in tema scuro */
 }
+
+/* Un colore per sezione: il codice scrive il nome della scheda in <body data-vista="..."> */
+body[data-vista="sveglia"]      { --accento: #f5a524; --accento-chiaro: #fbc56a; }
+body[data-vista="sonno"]        { --accento: #a78bfa; --accento-chiaro: #c4b5fd; }
+body[data-vista="palestra"]     { --accento: #4ade80; --accento-chiaro: #86efac; }
+body[data-vista="corsa"]        { --accento: #22d3ee; --accento-chiaro: #67e8f9; }
+body[data-vista="impostazioni"] { --accento: #9aa4b1; --accento-chiaro: #c3cad3; }
 
 * {
   box-sizing: border-box;
@@ -27,40 +48,108 @@ html, body {
   background: var(--sfondo);
   color: var(--testo);
   font-family: -apple-system, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
 /* Spazio per la barra di stato in alto e la tabbar in basso */
 main {
   padding-top: env(safe-area-inset-top);
-  padding-bottom: calc(var(--altezza-tabbar) + env(safe-area-inset-bottom) + 16px);
+  padding-bottom: calc(var(--altezza-tabbar) + env(safe-area-inset-bottom) + 20px);
   min-height: 100vh;
 }
 
-/* Le viste sono nascoste, si vede solo quella attiva */
+/* Le viste sono nascoste, si vede solo quella attiva (con una breve dissolvenza) */
 .vista { display: none; }
-.vista.attiva { display: block; }
+.vista.attiva {
+  display: block;
+  animation: entra 0.22s ease-out;
+}
+@keyframes entra {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .vista.attiva { animation: none; }
+}
 
+/* Numeri e sigle in monospazio, con cifre tutte della stessa larghezza */
+.mono,
+.stat-valore,
+.hero-valore,
+.strumento-valore,
+.dettaglio-valore,
+.cronometro,
+.zona {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Unità di misura accanto ai numeri: più piccole e grigie */
+.unita {
+  margin: 0 0.35em 0 2px;
+  font-size: 0.62em;
+  font-weight: 500;
+  color: var(--testo-secondario);
+}
+.unita:last-child { margin-right: 0; }
+
+/* ---------- Intestazione della scheda ---------- */
 .titolo {
-  padding: 16px 20px 8px;
+  padding: 14px 20px 6px;
+}
+.data-oggi {
+  display: block;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--testo-secondario);
 }
 .titolo h1 {
-  margin: 0;
-  font-size: 32px;
-  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 4px 0 0;
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+}
+/* Barretta colorata accanto al titolo */
+.titolo h1::before {
+  content: '';
+  width: 4px;
+  height: 26px;
+  border-radius: 2px;
+  background: var(--accento);
 }
 
 .sezione {
-  margin: 28px 20px 10px;
-  font-size: 20px;
-  font-weight: 700;
+  margin: 26px 20px 10px;
+  font-size: 17px;
+  font-weight: 600;
 }
 
-/* Riquadro generico */
+/* Etichette brevi in maiuscoletto (stile strumento) */
+.etichetta,
+.stat-etichetta,
+.strumento-etichetta,
+.dettaglio-etichetta,
+.campo span {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--testo-secondario);
+}
+
+/* ---------- Riquadri ---------- */
 .card {
-  margin: 16px 20px;
+  margin: 12px 16px;
   padding: 16px;
   background: var(--superficie);
-  border-radius: 14px;
+  border: 1px solid var(--bordo);
+  border-radius: 16px;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -68,37 +157,27 @@ main {
 .card.centro { text-align: center; }
 
 .vuoto {
-  margin: 24px 20px;
-  padding: 32px 20px;
+  margin: 20px 16px;
+  padding: 28px 20px;
   background: var(--superficie);
-  border-radius: 14px;
+  border: 1px dashed var(--bordo-forte);
+  border-radius: 16px;
   color: var(--testo-secondario);
+  font-size: 15px;
+  line-height: 1.45;
   text-align: center;
-}
-
-.etichetta {
-  font-size: 13px;
-  color: var(--testo-secondario);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
 }
 
 .testo-sec {
   color: var(--testo-secondario);
-  font-size: 15px;
+  font-size: 14px;
 }
 
-/* Campi di inserimento */
+/* ---------- Campi di inserimento ---------- */
 .campo {
   display: flex;
   flex-direction: column;
   gap: 6px;
-}
-.campo span {
-  font-size: 13px;
-  color: var(--testo-secondario);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
 }
 
 /* Font almeno 16px: sotto questa soglia iOS ingrandisce la pagina al tocco */
@@ -111,18 +190,24 @@ main {
   font-family: inherit;
   color: var(--testo);
   background: var(--superficie-2);
-  border: none;
-  border-radius: 10px;
+  border: 1px solid var(--bordo);
+  border-radius: 12px;
   outline: none;
   resize: none;
   -webkit-appearance: none;
   appearance: none;
 }
+.campo input:focus,
+.campo textarea:focus {
+  border-color: var(--accento);
+}
 #sveglia-ora {
-  font-size: 34px;
-  font-weight: 600;
+  font-family: var(--mono);
+  font-size: 40px;
+  font-weight: 500;
   text-align: center;
-  min-height: 64px;
+  min-height: 72px;
+  color: var(--accento);
 }
 
 /* Selettore a segmenti (Ripeti) */
@@ -132,31 +217,37 @@ main {
   gap: 3px;
   padding: 3px;
   background: var(--superficie-2);
-  border-radius: 10px;
+  border: 1px solid var(--bordo);
+  border-radius: 12px;
 }
+/* I pulsanti rotondi veri restano invisibili dentro la loro etichetta
+   (senza position: relative finirebbero fuori schermo e allargherebbero la pagina) */
+.segmenti label { position: relative; }
 .segmenti input {
   position: absolute;
+  inset: 0;
   opacity: 0;
   pointer-events: none;
 }
 .campo .segmenti span {
   display: block;
   padding: 9px 2px;
+  font-family: inherit;
   font-size: 14px;
   color: var(--testo);
   text-align: center;
   text-transform: none;
   letter-spacing: 0;
-  border-radius: 8px;
+  border-radius: 9px;
   cursor: pointer;
 }
 .segmenti input:checked + span {
   background: var(--accento);
-  color: #fff;
+  color: var(--su-accento);
   font-weight: 600;
 }
 
-/* Pulsanti */
+/* ---------- Pulsanti ---------- */
 .btn-primario,
 .btn-secondario,
 .btn-testo {
@@ -169,12 +260,13 @@ main {
   cursor: pointer;
 }
 .btn-primario {
-  color: #fff;
+  color: var(--su-accento);
   background: var(--accento);
 }
 .btn-secondario {
   color: var(--accento);
   background: var(--superficie-2);
+  border: 1px solid var(--bordo);
 }
 .btn-testo {
   color: var(--accento);
@@ -195,7 +287,7 @@ main {
   padding: 4px 8px;
   font-size: 26px;
   line-height: 1;
-  color: var(--testo-secondario);
+  color: var(--testo-terziario);
   background: none;
   border: none;
   cursor: pointer;
@@ -203,72 +295,116 @@ main {
 
 .centrato { text-align: center; }
 
-/* Allenamento in corso */
+/* ---------- Allenamento in corso ---------- */
 .cronometro {
-  font-size: 52px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
+  font-size: 54px;
+  font-weight: 500;
+  color: var(--accento);
 }
 .riepilogo-durata {
-  font-size: 20px;
-  font-weight: 600;
+  font-family: var(--mono);
+  font-size: 18px;
+  font-weight: 500;
 }
 
-/* Riquadri del riepilogo (griglia a 2 colonne) */
+/* ---------- Riquadri del riepilogo (griglia a 2 colonne) ---------- */
 .griglia-stat {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin: 0 20px;
+  gap: 8px;
+  margin: 0 16px;
 }
 .stat {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 14px;
+  gap: 8px;
+  padding: 12px 14px;
   background: var(--superficie);
+  border: 1px solid var(--bordo);
   border-radius: 14px;
+  min-width: 0;
+}
+.stat-etichetta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 .stat-valore {
   font-size: 24px;
-  font-weight: 700;
-}
-.stat-etichetta {
-  font-size: 13px;
-  color: var(--testo-secondario);
+  font-weight: 500;
+  white-space: nowrap;
 }
 
-/* Riquadro "ultima corsa" con il numero principale grande */
-.hero { gap: 8px; }
-.hero-valore {
-  font-size: 52px;
-  font-weight: 700;
-  line-height: 1.05;
+/* Icone piccole nelle etichette */
+.ico {
+  width: 15px;
+  height: 15px;
+  flex: none;
+  fill: none;
+  stroke: var(--accento);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
-.hero-unita {
-  margin-left: 6px;
-  font-size: 22px;
-  font-weight: 600;
-  color: var(--testo-secondario);
-}
-.hero-righe {
+
+/* ---------- Riquadro principale (ultima corsa, ultima notte) ---------- */
+.hero { gap: 10px; }
+.hero-testa {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px 18px;
-  font-size: 15px;
-  color: var(--testo-secondario);
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
 }
-.hero-righe b {
-  color: var(--testo);
-  font-weight: 600;
+.hero-link {
+  font-size: 13px;
+  color: var(--accento);
+  white-space: nowrap;
+}
+.hero.cliccabile { cursor: pointer; }
+.hero.cliccabile:active { background: var(--superficie-2); }
+.hero-valore {
+  font-size: 50px;
+  font-weight: 500;
+  line-height: 1.05;
+  color: var(--accento);
+  letter-spacing: -1px;
+}
+.hero-valore .unita {
+  font-size: 0.4em;
+  letter-spacing: 0;
 }
 
-/* Grafici */
+/* Griglia di "strumenti" sotto il numero principale */
+.strumenti {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--bordo);
+}
+.strumento {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.strumento-valore {
+  font-size: 18px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.strumento-nota {
+  font-size: 12px;
+  color: var(--testo-secondario);
+}
+
+/* ---------- Grafici ---------- */
 .grafico {
-  margin: 0 20px;
+  margin: 0 16px;
   padding: 12px 10px 8px;
   background: var(--superficie);
-  border-radius: 14px;
+  border: 1px solid var(--bordo);
+  border-radius: 16px;
 }
 .grafico svg {
   display: block;
@@ -278,17 +414,28 @@ main {
 .grafico-info {
   min-height: 20px;
   margin-bottom: 6px;
-  font-size: 14px;
+  font-size: 13px;
   color: var(--testo-secondario);
   text-align: center;
 }
-.grafico .barra { fill: var(--accento); }
-.grafico .barra.selezionata { fill: var(--accento-chiaro); }
-.grafico .griglia { stroke: var(--bordo); stroke-width: 1; }
-.grafico .asse {
-  fill: var(--testo-secondario);
+/* Spiegazione breve sotto il grafico */
+.grafico-didascalia {
+  margin-top: 4px;
+  font-family: var(--mono);
   font-size: 11px;
-  font-family: -apple-system, system-ui, sans-serif;
+  letter-spacing: 0.5px;
+  color: var(--testo-terziario);
+  text-align: right;
+}
+/* Colonne passate attenuate, l'ultima (la più recente) piena */
+.grafico .barra { fill: var(--accento); opacity: 0.4; }
+.grafico path.barra:last-of-type { opacity: 1; }
+.grafico .barra.selezionata { fill: var(--accento-chiaro); opacity: 1; }
+.grafico .griglia { stroke: var(--bordo); stroke-width: 1; stroke-dasharray: 2 3; }
+.grafico .asse {
+  fill: var(--testo-terziario);
+  font-size: 11px;
+  font-family: var(--mono);
 }
 .grafico .linea {
   fill: none;
@@ -308,32 +455,27 @@ main {
   cursor: pointer;
 }
 
-/* Dettaglio: coppie etichetta / valore */
+/* ---------- Dettaglio: coppie etichetta / valore ---------- */
 .dettagli {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  gap: 8px;
 }
 .dettaglio {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
   padding: 10px 12px;
   background: var(--superficie-2);
-  border-radius: 10px;
-}
-.dettaglio-etichetta {
-  font-size: 12px;
-  color: var(--testo-secondario);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  border: 1px solid var(--bordo);
+  border-radius: 12px;
 }
 .dettaglio-valore {
   font-size: 18px;
-  font-weight: 600;
+  font-weight: 500;
 }
 
-/* Tempo nelle zone di frequenza cardiaca */
+/* ---------- Tempo nelle zone di frequenza cardiaca ---------- */
 .zone {
   display: flex;
   flex-direction: column;
@@ -345,46 +487,55 @@ main {
   white-space: nowrap;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
+  font-size: 12px;
   color: var(--testo-secondario);
-  font-variant-numeric: tabular-nums;
 }
 .zona-traccia {
-  height: 10px;
+  height: 8px;
   background: var(--superficie-2);
-  border-radius: 5px;
+  border-radius: 4px;
   overflow: hidden;
 }
 .zona-riempimento {
   height: 100%;
   background: var(--accento);
-  border-radius: 5px;
+  border-radius: 4px;
 }
+/* Colori delle zone, dalla più leggera alla più intensa */
+.zona:nth-child(1) .zona-riempimento { background: #3b82f6; }
+.zona:nth-child(2) .zona-riempimento { background: #22c55e; }
+.zona:nth-child(3) .zona-riempimento { background: #eab308; }
+.zona:nth-child(4) .zona-riempimento { background: #f97316; }
+.zona:nth-child(5) .zona-riempimento { background: #ef4444; }
+.zona:nth-child(6) .zona-riempimento { background: #dc2626; }
+.zona:nth-child(7) .zona-riempimento { background: #b91c1c; }
 .zona-valore { text-align: right; }
 
-/* Messaggi */
+/* ---------- Messaggi ---------- */
 .esito {
   margin: 0 20px;
   min-height: 20px;
   color: var(--successo);
-  font-size: 15px;
+  font-size: 14px;
   text-align: center;
 }
 .esito-errore { color: var(--pericolo); }
 .nota {
-  margin: 12px 20px;
-  color: var(--testo-secondario);
-  font-size: 13px;
+  margin: 10px 20px;
+  color: var(--testo-terziario);
+  font-size: 12px;
+  line-height: 1.4;
   text-align: center;
 }
 
-/* Elenchi (storico, preferite) */
+/* ---------- Elenchi (storico, preferite) ---------- */
 .lista {
   list-style: none;
-  margin: 0 20px;
+  margin: 0 16px;
   padding: 0;
   background: var(--superficie);
-  border-radius: 14px;
+  border: 1px solid var(--bordo);
+  border-radius: 16px;
   overflow: hidden;
 }
 .lista:empty { display: none; }
@@ -400,12 +551,12 @@ main {
 .riga:last-child { border-bottom: none; }
 .riga:active { background: var(--superficie-2); }
 .riga-titolo {
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 600;
 }
 .riga-sotto {
   margin-top: 2px;
-  font-size: 14px;
+  font-size: 13px;
   color: var(--testo-secondario);
 }
 .riga-nota {
@@ -414,19 +565,31 @@ main {
   color: var(--testo-secondario);
 }
 .riga-valore {
-  font-size: 15px;
-  color: var(--testo-secondario);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  color: var(--testo);
   white-space: nowrap;
 }
+/* Freccina sulle righe che aprono un dettaglio */
+.lista-apribile .riga-valore::after {
+  content: '›';
+  margin-left: 8px;
+  font-family: -apple-system, system-ui, sans-serif;
+  font-size: 18px;
+  color: var(--testo-terziario);
+}
+/* Lo storico notti è solo da leggere */
+#sonno-storico .riga { cursor: default; }
+#sonno-storico .riga:active { background: none; }
 
-/* Pannello che si apre dal basso */
+/* ---------- Pannello che si apre dal basso ---------- */
 .velo {
   position: fixed;
   inset: 0;
   z-index: 10;
   display: flex;
   align-items: flex-end;
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(0, 0, 0, 0.65);
 }
 .foglio {
   width: 100%;
@@ -435,9 +598,21 @@ main {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 20px 20px calc(20px + env(safe-area-inset-bottom));
+  padding: 10px 20px calc(20px + env(safe-area-inset-bottom));
   background: var(--superficie);
-  border-radius: 18px 18px 0 0;
+  border-top: 1px solid var(--bordo-forte);
+  border-radius: 20px 20px 0 0;
+}
+/* Maniglia in alto al pannello */
+.foglio::before {
+  content: '';
+  align-self: center;
+  flex: none;
+  width: 36px;
+  height: 4px;
+  margin-bottom: 6px;
+  border-radius: 2px;
+  background: var(--bordo-forte);
 }
 .foglio h3 {
   margin: 0;
@@ -445,36 +620,53 @@ main {
 }
 .foglio .esito { margin: 0; }
 
-/* Barra delle schede */
+/* ---------- Barra delle schede (effetto vetro) ---------- */
 .tabbar {
   position: fixed;
   left: 0;
   right: 0;
   bottom: 0;
+  z-index: 5;
   display: flex;
   height: calc(var(--altezza-tabbar) + env(safe-area-inset-bottom));
   padding-bottom: env(safe-area-inset-bottom);
-  background: var(--superficie);
+  background: rgba(12, 15, 19, 0.78);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
   border-top: 1px solid var(--bordo);
 }
 
 .tab {
+  position: relative;
   flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
+  gap: 3px;
   background: none;
   border: none;
-  color: var(--testo-secondario);
-  font-size: 11px;
+  color: var(--testo-terziario);
+  font-size: 10px;
+  font-weight: 500;
   font-family: inherit;
+  letter-spacing: 0.2px;
   cursor: pointer;
   user-select: none;
   -webkit-user-select: none;
+  transition: color 0.15s;
 }
 
 .tab.attiva {
   color: var(--accento);
+}
+/* Trattino luminoso sopra la scheda attiva */
+.tab.attiva::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  width: 22px;
+  height: 2px;
+  border-radius: 0 0 2px 2px;
+  background: var(--accento);
 }

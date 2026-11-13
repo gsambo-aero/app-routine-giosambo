@@ -6,16 +6,33 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Routine">
-  <meta name="theme-color" content="#0f0f10">
+  <meta name="theme-color" content="#07090c">
   <title>App Routine Giosambo</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
+  <!-- Icone usate nella pagina: si disegnano una volta qui e si richiamano con <use href="#i-..."> -->
+  <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+    <symbol id="i-calendario" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></symbol>
+    <symbol id="i-orologio" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="i-cronometro" viewBox="0 0 24 24"><circle cx="12" cy="14" r="7"/><path d="M12 11v3M10 3h4M12 3v4M18 7l1.5-1.5"/></symbol>
+    <symbol id="i-manubrio" viewBox="0 0 24 24"><path d="M6 7v10M18 7v10M3 10v4M21 10v4M6 12h12"/></symbol>
+    <symbol id="i-percorso" viewBox="0 0 24 24"><circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M8 19h8a3.5 3.5 0 0 0 0-7H8a3.5 3.5 0 0 1 0-7h8"/></symbol>
+    <symbol id="i-bandiera" viewBox="0 0 24 24"><path d="M5 21V4M5 4h12l-2.5 4L17 12H5"/></symbol>
+    <symbol id="i-tachimetro" viewBox="0 0 24 24"><path d="M4 17a8 8 0 1 1 16 0"/><path d="M12 17l4-5"/></symbol>
+    <symbol id="i-cuore" viewBox="0 0 24 24"><path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.3a4.3 4.3 0 0 1 7.5 2.5C19.5 15.4 12 20 12 20z"/></symbol>
+    <symbol id="i-montagna" viewBox="0 0 24 24"><path d="M3 20l6.5-11 4 6.5 2.5-3.5L21 20z"/></symbol>
+    <symbol id="i-luna" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></symbol>
+    <symbol id="i-bersaglio" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></symbol>
+    <symbol id="i-battito" viewBox="0 0 24 24"><path d="M3 12h4l2-5 4 10 2-5h6"/></symbol>
+  </svg>
+
   <main>
     <!-- ========== Vista Sveglia ========== -->
     <section id="vista-sveglia" class="vista">
       <header class="titolo">
+        <span class="data-oggi"></span>
         <h1>Sveglia</h1>
       </header>
 
@@ -46,15 +63,16 @@
       <!-- Sveglie preferite -->
       <h2 class="sezione">Preferite</h2>
       <ul id="preferite" class="lista"></ul>
-      <p id="preferite-vuoto" class="nota">Nessuna sveglia preferita. Imposta ora, nome e ripetizione, poi tocca "Salva come preferita".</p>
-      <p id="preferite-aiuto" class="nota">Tocca una preferita per impostarla, × per eliminarla.</p>
+      <p id="preferite-vuoto" class="nota">Nessuna preferita. Scegli ora, nome e ripetizione, poi tocca "Salva come preferita".</p>
+      <p id="preferite-aiuto" class="nota">Tocca per impostare, × per eliminare.</p>
 
-      <p class="nota">Le sveglie vengono create nell'app Orologio. Per disattivarle o eliminarle usa Orologio.</p>
+      <p class="nota">Le sveglie si creano nell'app Orologio: disattivale o eliminale da lì.</p>
     </section>
 
     <!-- ========== Vista Sonno ========== -->
     <section id="vista-sonno" class="vista">
       <header class="titolo">
+        <span class="data-oggi"></span>
         <h1>Sonno</h1>
       </header>
 
@@ -70,29 +88,30 @@
         <h2 class="sezione">Ultimi 7 giorni</h2>
         <div class="griglia-stat">
           <div class="stat">
+            <span class="stat-etichetta"><svg class="ico"><use href="#i-luna"/></svg>Sonno medio</span>
             <span id="stat-sonno-media" class="stat-valore">n/d</span>
-            <span class="stat-etichetta">Sonno medio</span>
           </div>
           <div class="stat">
+            <span class="stat-etichetta"><svg class="ico"><use href="#i-bersaglio"/></svg>Punteggio</span>
             <span id="stat-sonno-punteggio" class="stat-valore">n/d</span>
-            <span class="stat-etichetta">Punteggio medio</span>
           </div>
           <div class="stat">
+            <span class="stat-etichetta"><svg class="ico"><use href="#i-cuore"/></svg>FC a riposo</span>
             <span id="stat-sonno-fc" class="stat-valore">n/d</span>
-            <span class="stat-etichetta">FC a riposo media</span>
           </div>
           <div class="stat">
+            <span class="stat-etichetta"><svg class="ico"><use href="#i-battito"/></svg>HRV</span>
             <span id="stat-sonno-hrv" class="stat-valore">n/d</span>
-            <span class="stat-etichetta">HRV media</span>
           </div>
         </div>
         <p id="sonno-notti-7" class="nota"></p>
 
         <!-- Grafico: ore di sonno -->
-        <h2 class="sezione">Ore di sonno (ultime 14 notti)</h2>
+        <h2 class="sezione">Ore di sonno</h2>
         <div class="grafico">
           <div id="info-sonno" class="grafico-info"></div>
           <div id="grafico-sonno"></div>
+          <div class="grafico-didascalia">ultime 14 notti</div>
         </div>
 
         <!-- Grafico: HRV -->
@@ -100,16 +119,16 @@
         <div class="grafico">
           <div id="info-hrv" class="grafico-info"></div>
           <div id="grafico-hrv"></div>
+          <div class="grafico-didascalia">↑ più alta del solito = recupero migliore</div>
         </div>
-        <p class="nota">Più alta del tuo solito = in genere recupero migliore.</p>
 
         <!-- Grafico: FC a riposo -->
         <h2 class="sezione">FC a riposo</h2>
         <div class="grafico">
           <div id="info-fc-riposo" class="grafico-info"></div>
           <div id="grafico-fc-riposo"></div>
+          <div class="grafico-didascalia">↓ più bassa del solito = recupero migliore</div>
         </div>
-        <p class="nota">Più bassa del tuo solito = in genere recupero migliore.</p>
 
         <!-- Storico -->
         <h2 class="sezione">Storico notti</h2>
@@ -125,6 +144,7 @@
     <!-- ========== Vista Palestra ========== -->
     <section id="vista-palestra" class="vista">
       <header class="titolo">
+        <span class="data-oggi"></span>
         <h1>Palestra</h1>
       </header>
 
@@ -164,33 +184,34 @@
       <h2 class="sezione">Riepilogo</h2>
       <div class="griglia-stat">
         <div class="stat">
+          <span class="stat-etichetta"><svg class="ico"><use href="#i-manubrio"/></svg>Sedute · sett.</span>
           <span id="stat-sett-num" class="stat-valore">0</span>
-          <span class="stat-etichetta">Allenamenti questa settimana</span>
         </div>
         <div class="stat">
+          <span class="stat-etichetta"><svg class="ico"><use href="#i-orologio"/></svg>Tempo · sett.</span>
           <span id="stat-sett-tempo" class="stat-valore">0 min</span>
-          <span class="stat-etichetta">Tempo questa settimana</span>
         </div>
         <div class="stat">
+          <span class="stat-etichetta"><svg class="ico"><use href="#i-calendario"/></svg>Sedute · mese</span>
           <span id="stat-mese-num" class="stat-valore">0</span>
-          <span class="stat-etichetta">Allenamenti questo mese</span>
         </div>
         <div class="stat">
+          <span class="stat-etichetta"><svg class="ico"><use href="#i-cronometro"/></svg>Media · mese</span>
           <span id="stat-media" class="stat-valore">0 min</span>
-          <span class="stat-etichetta">Durata media del mese</span>
         </div>
       </div>
 
       <!-- Storico -->
       <h2 class="sezione">Storico</h2>
-      <ul id="storico" class="lista"></ul>
+      <ul id="storico" class="lista lista-apribile"></ul>
       <p id="storico-vuoto" class="nota">Nessun allenamento salvato.</p>
-      <p id="storico-aiuto" class="nota">Tocca un allenamento per modificarlo o eliminarlo.</p>
+      <p id="storico-aiuto" class="nota">Tocca un allenamento per modificarlo.</p>
     </section>
 
     <!-- ========== Vista Corsa ========== -->
     <section id="vista-corsa" class="vista">
       <header class="titolo">
+        <span class="data-oggi"></span>
         <h1>Corsa</h1>
       </header>
 
@@ -200,34 +221,34 @@
 
       <div id="corsa-contenuto">
         <!-- Ultima corsa (riempito dal codice) -->
-        <div id="corsa-ultima" class="card hero"></div>
+        <div id="corsa-ultima" class="card hero cliccabile"></div>
 
         <!-- Riepilogo numerico -->
         <h2 class="sezione">Riepilogo</h2>
         <div class="griglia-stat">
           <div class="stat">
+            <span class="stat-etichetta"><svg class="ico"><use href="#i-percorso"/></svg>Km · sett.</span>
             <span id="stat-corsa-sett-km" class="stat-valore">0 km</span>
-            <span class="stat-etichetta">Km questa settimana</span>
           </div>
           <div class="stat">
+            <span class="stat-etichetta"><svg class="ico"><use href="#i-bandiera"/></svg>Corse · sett.</span>
             <span id="stat-corsa-sett-num" class="stat-valore">0</span>
-            <span class="stat-etichetta">Corse questa settimana</span>
           </div>
           <div class="stat">
+            <span class="stat-etichetta"><svg class="ico"><use href="#i-percorso"/></svg>Km · mese</span>
             <span id="stat-corsa-mese-km" class="stat-valore">0 km</span>
-            <span class="stat-etichetta">Km questo mese</span>
           </div>
           <div class="stat">
+            <span class="stat-etichetta"><svg class="ico"><use href="#i-tachimetro"/></svg>Passo · mese</span>
             <span id="stat-corsa-mese-passo" class="stat-valore">n/d</span>
-            <span class="stat-etichetta">Passo medio del mese</span>
           </div>
           <div class="stat">
+            <span class="stat-etichetta"><svg class="ico"><use href="#i-cuore"/></svg>FC media · mese</span>
             <span id="stat-corsa-mese-fc" class="stat-valore">n/d</span>
-            <span class="stat-etichetta">FC media del mese</span>
           </div>
           <div class="stat">
+            <span class="stat-etichetta"><svg class="ico"><use href="#i-montagna"/></svg>Salita · mese</span>
             <span id="stat-corsa-mese-disl" class="stat-valore">0 m</span>
-            <span class="stat-etichetta">Dislivello del mese</span>
           </div>
         </div>
 
@@ -236,6 +257,7 @@
         <div class="grafico">
           <div id="info-km" class="grafico-info"></div>
           <div id="grafico-km"></div>
+          <div class="grafico-didascalia">ultime 8 settimane</div>
         </div>
 
         <!-- Grafico: passo medio delle ultime corse -->
@@ -243,13 +265,12 @@
         <div class="grafico">
           <div id="info-passo" class="grafico-info"></div>
           <div id="grafico-passo"></div>
+          <div class="grafico-didascalia">↑ più veloce · esclusi i passi anomali</div>
         </div>
-        <p class="nota">Più in alto = più veloce. Escluse le registrazioni con passo anomalo.</p>
 
         <!-- Storico -->
         <h2 class="sezione">Storico corse</h2>
-        <ul id="corsa-storico" class="lista"></ul>
-        <p class="nota">Tocca una corsa per tutti i dettagli.</p>
+        <ul id="corsa-storico" class="lista lista-apribile"></ul>
       </div>
 
       <p id="corsa-fonte" class="nota"></p>
@@ -261,6 +282,7 @@
     <!-- ========== Vista Impostazioni ========== -->
     <section id="vista-impostazioni" class="vista">
       <header class="titolo">
+        <span class="data-oggi"></span>
         <h1>Impostazioni</h1>
       </header>
 
@@ -276,7 +298,7 @@
         <span id="stato-sync" class="testo-sec" style="text-align: center;"></span>
       </div>
       <p id="esito-sync" class="esito"></p>
-      <p class="nota">La chiave resta solo su questo iPhone e non viene inclusa nel backup.</p>
+      <p class="nota">La chiave resta solo su questo iPhone e non entra nel backup.</p>
 
       <!-- Backup -->
       <h2 class="sezione">Backup</h2>
@@ -287,7 +309,7 @@
         <span id="ultimo-backup" class="testo-sec"></span>
       </div>
       <p id="esito-backup" class="esito"></p>
-      <p class="nota">I dati dell'app sono salvati solo su questo iPhone. Esporta un backup ogni settimana e salvalo su iCloud Drive.</p>
+      <p class="nota">I dati sono salvati solo su questo iPhone: esporta un backup ogni settimana e salvalo su iCloud Drive.</p>
     </section>
   </main>
 
@@ -333,38 +355,43 @@
   <!-- Barra delle schede in basso -->
   <nav class="tabbar">
     <button class="tab" data-vista="sveglia">
-      <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="12" cy="13" r="8"/>
-        <path d="M12 9v4l2 2"/>
-        <path d="M5 3L2 6"/>
-        <path d="M22 6l-3-3"/>
+      <svg viewBox="0 0 24 24" width="25" height="25" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="13" r="7"/>
+        <path d="M12 10v3h2"/>
+        <path d="M7 4L4.25 6"/>
+        <path d="M17 4l2.75 2"/>
       </svg>
       <span>Sveglia</span>
     </button>
     <button class="tab" data-vista="sonno">
-      <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>
+      <svg viewBox="0 0 24 24" width="25" height="25" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 3h.4a7.5 7.5 0 0 0 7.9 12.4A9 9 0 1 1 12 3z"/>
       </svg>
       <span>Sonno</span>
     </button>
     <button class="tab" data-vista="palestra">
-      <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M6 7v10"/>
-        <path d="M18 7v10"/>
-        <path d="M3 10v4"/>
-        <path d="M21 10v4"/>
-        <path d="M6 12h12"/>
+      <svg viewBox="0 0 24 24" width="25" height="25" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M2 12h1"/>
+        <path d="M6 8H4a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"/>
+        <rect x="6" y="6" width="3" height="12" rx="1"/>
+        <path d="M9 12h6"/>
+        <rect x="15" y="6" width="3" height="12" rx="1"/>
+        <path d="M18 8h2a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-2"/>
+        <path d="M22 12h-1"/>
       </svg>
       <span>Palestra</span>
     </button>
     <button class="tab" data-vista="corsa">
-      <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M3 12h4l3-7 4 14 3-7h4"/>
+      <svg viewBox="0 0 24 24" width="25" height="25" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="13" cy="4" r="1"/>
+        <path d="M4 17l5 1 .75-1.5"/>
+        <path d="M15 21v-4l-4-3 1-6"/>
+        <path d="M7 12V9l5-1 3 3 3 1"/>
       </svg>
       <span>Corsa</span>
     </button>
     <button class="tab" data-vista="impostazioni">
-      <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <svg viewBox="0 0 24 24" width="25" height="25" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
         <path d="M4 6h9"/>
         <path d="M19 6h1"/>
         <circle cx="16" cy="6" r="2.5"/>
