@@ -27,289 +27,325 @@
     <symbol id="i-bersaglio" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></symbol>
     <symbol id="i-battito" viewBox="0 0 24 24"><path d="M3 12h4l2-5 4 10 2-5h6"/></symbol>
   </svg>
-
   <main>
-    <!-- ========== Vista Sveglia ========== -->
-    <section id="vista-sveglia" class="vista">
+    <!-- ========== Vista Oggi ========== -->
+    <section id="vista-oggi" class="vista">
       <header class="titolo">
         <span class="data-oggi"></span>
-        <h1>Sveglia</h1>
-      </header>
-
-      <form id="form-sveglia" class="card">
-        <label class="campo">
-          <span>Ora</span>
-          <input type="time" id="sveglia-ora" value="07:00" required>
-        </label>
-        <label class="campo">
-          <span>Nome</span>
-          <input type="text" id="sveglia-nome" placeholder="Sveglia" maxlength="40" autocomplete="off">
-        </label>
-        <div class="campo">
-          <span>Ripeti</span>
-          <div class="segmenti">
-            <label><input type="radio" name="ripeti" value="una" checked><span>Una volta</span></label>
-            <label><input type="radio" name="ripeti" value="feriali"><span>Lun-Ven</span></label>
-            <label><input type="radio" name="ripeti" value="ogni"><span>Ogni giorno</span></label>
-            <label><input type="radio" name="ripeti" value="weekend"><span>Weekend</span></label>
-          </div>
+        <div class="titolo-riga">
+          <h1>Oggi</h1>
+          <button type="button" class="btn-ingranaggio" data-impostazioni aria-label="Impostazioni"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h9"/><path d="M19 6h1"/><circle cx="16" cy="6" r="2.5"/><path d="M4 12h3"/><path d="M13 12h7"/><circle cx="10" cy="12" r="2.5"/><path d="M4 18h11"/><circle cx="18" cy="18" r="2.5"/></svg></button>
         </div>
-        <button type="submit" class="btn-primario">Imposta sveglia</button>
-        <button type="button" id="btn-salva-preferita" class="btn-testo">Salva come preferita</button>
-      </form>
+      </header>
+      <div class="vuoto">Qui arriveranno meteo, impegni del giorno, notizie e il riepilogo di salute e spese.</div>
+      <h2 class="sezione">Sveglia</h2>
+            <form id="form-sveglia" class="card">
+              <label class="campo">
+                <span>Ora</span>
+                <input type="time" id="sveglia-ora" value="07:00" required>
+              </label>
+              <label class="campo">
+                <span>Nome</span>
+                <input type="text" id="sveglia-nome" placeholder="Sveglia" maxlength="40" autocomplete="off">
+              </label>
+              <div class="campo">
+                <span>Ripeti</span>
+                <div class="segmenti">
+                  <label><input type="radio" name="ripeti" value="una" checked><span>Una volta</span></label>
+                  <label><input type="radio" name="ripeti" value="feriali"><span>Lun-Ven</span></label>
+                  <label><input type="radio" name="ripeti" value="ogni"><span>Ogni giorno</span></label>
+                  <label><input type="radio" name="ripeti" value="weekend"><span>Weekend</span></label>
+                </div>
+              </div>
+              <button type="submit" class="btn-primario">Imposta sveglia</button>
+              <button type="button" id="btn-salva-preferita" class="btn-testo">Salva come preferita</button>
+            </form>
 
-      <p id="sveglia-esito" class="esito"></p>
+            <p id="sveglia-esito" class="esito"></p>
 
-      <!-- Sveglie preferite -->
-      <h2 class="sezione">Preferite</h2>
-      <ul id="preferite" class="lista"></ul>
-      <p id="preferite-vuoto" class="nota">Nessuna preferita. Scegli ora, nome e ripetizione, poi tocca "Salva come preferita".</p>
-      <p id="preferite-aiuto" class="nota">Tocca per impostare, × per eliminare.</p>
+            <!-- Sveglie preferite -->
+            <h2 class="sezione">Preferite</h2>
+            <ul id="preferite" class="lista"></ul>
+            <p id="preferite-vuoto" class="nota">Nessuna preferita. Scegli ora, nome e ripetizione, poi tocca "Salva come preferita".</p>
+            <p id="preferite-aiuto" class="nota">Tocca per impostare, × per eliminare.</p>
 
-      <p class="nota">Le sveglie si creano nell'app Orologio: disattivale o eliminale da lì.</p>
+            <p class="nota">Le sveglie si creano nell'app Orologio: disattivale o eliminale da lì.</p>
     </section>
 
-    <!-- ========== Vista Sonno ========== -->
-    <section id="vista-sonno" class="vista">
+    <!-- ========== Vista Agenda ========== -->
+    <section id="vista-agenda" class="vista">
       <header class="titolo">
         <span class="data-oggi"></span>
-        <h1>Sonno</h1>
+        <div class="titolo-riga">
+          <h1>Agenda</h1>
+          <button type="button" class="btn-ingranaggio" data-impostazioni aria-label="Impostazioni"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h9"/><path d="M19 6h1"/><circle cx="16" cy="6" r="2.5"/><path d="M4 12h3"/><path d="M13 12h7"/><circle cx="10" cy="12" r="2.5"/><path d="M4 18h11"/><circle cx="18" cy="18" r="2.5"/></svg></button>
+        </div>
       </header>
-
-      <div id="sonno-vuoto" class="vuoto" hidden>
-        Nessuna notte registrata. Dormi con il Suunto al polso e sincronizza: i dati arrivano da Intervals.icu.
-      </div>
-
-      <div id="sonno-contenuto">
-        <!-- Ultima notte (riempito dal codice) -->
-        <div id="sonno-ultima" class="card hero"></div>
-
-        <!-- Medie degli ultimi 7 giorni -->
-        <h2 class="sezione">Ultimi 7 giorni</h2>
-        <div class="griglia-stat">
-          <div class="stat">
-            <span class="stat-etichetta"><svg class="ico"><use href="#i-luna"/></svg>Sonno medio</span>
-            <span id="stat-sonno-media" class="stat-valore">n/d</span>
-          </div>
-          <div class="stat">
-            <span class="stat-etichetta"><svg class="ico"><use href="#i-bersaglio"/></svg>Punteggio</span>
-            <span id="stat-sonno-punteggio" class="stat-valore">n/d</span>
-          </div>
-          <div class="stat">
-            <span class="stat-etichetta"><svg class="ico"><use href="#i-cuore"/></svg>FC a riposo</span>
-            <span id="stat-sonno-fc" class="stat-valore">n/d</span>
-          </div>
-          <div class="stat">
-            <span class="stat-etichetta"><svg class="ico"><use href="#i-battito"/></svg>HRV</span>
-            <span id="stat-sonno-hrv" class="stat-valore">n/d</span>
-          </div>
-        </div>
-        <p id="sonno-notti-7" class="nota"></p>
-
-        <!-- Grafico: ore di sonno -->
-        <h2 class="sezione">Ore di sonno</h2>
-        <div class="grafico">
-          <div id="info-sonno" class="grafico-info"></div>
-          <div id="grafico-sonno"></div>
-          <div class="grafico-didascalia">ultime 14 notti</div>
-        </div>
-
-        <!-- Grafico: HRV -->
-        <h2 class="sezione">HRV notturna</h2>
-        <div class="grafico">
-          <div id="info-hrv" class="grafico-info"></div>
-          <div id="grafico-hrv"></div>
-          <div class="grafico-didascalia">↑ più alta del solito = recupero migliore</div>
-        </div>
-
-        <!-- Grafico: FC a riposo -->
-        <h2 class="sezione">FC a riposo</h2>
-        <div class="grafico">
-          <div id="info-fc-riposo" class="grafico-info"></div>
-          <div id="grafico-fc-riposo"></div>
-          <div class="grafico-didascalia">↓ più bassa del solito = recupero migliore</div>
-        </div>
-
-        <!-- Storico -->
-        <h2 class="sezione">Storico notti</h2>
-        <ul id="sonno-storico" class="lista"></ul>
-      </div>
-
-      <p id="sonno-fonte" class="nota"></p>
-      <div class="centrato">
-        <button id="btn-sync-sonno" class="btn-testo">Sincronizza ora</button>
-      </div>
+      <div class="vuoto">Impegni e cose da fare, da aggiungere anche a voce. In costruzione.</div>
     </section>
 
-    <!-- ========== Vista Palestra ========== -->
-    <section id="vista-palestra" class="vista">
+    <!-- ========== Vista Spese ========== -->
+    <section id="vista-spese" class="vista">
       <header class="titolo">
         <span class="data-oggi"></span>
-        <h1>Palestra</h1>
+        <div class="titolo-riga">
+          <h1>Spese</h1>
+          <button type="button" class="btn-ingranaggio" data-impostazioni aria-label="Impostazioni"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h9"/><path d="M19 6h1"/><circle cx="16" cy="6" r="2.5"/><path d="M4 12h3"/><path d="M13 12h7"/><circle cx="10" cy="12" r="2.5"/><path d="M4 18h11"/><circle cx="18" cy="18" r="2.5"/></svg></button>
+        </div>
       </header>
-
-      <!-- Stato 1: nessun allenamento in corso -->
-      <div id="palestra-inattivo" class="card">
-        <button id="btn-inizia" class="btn-primario btn-grande">Inizia allenamento</button>
-      </div>
-
-      <!-- Stato 2: allenamento in corso -->
-      <div id="palestra-incorso" class="card centro" hidden>
-        <span class="etichetta">Allenamento in corso</span>
-        <div id="cronometro" class="cronometro">00:00:00</div>
-        <span id="inizio-alle" class="testo-sec"></span>
-        <button id="btn-apri-hevy" class="btn-secondario">Apri Hevy</button>
-        <button id="btn-termina" class="btn-primario">Termina allenamento</button>
-        <button id="btn-annulla" class="btn-testo btn-rosso">Annulla allenamento</button>
-      </div>
-
-      <!-- Stato 3: salvataggio dopo "Termina" -->
-      <form id="palestra-salva" class="card" hidden>
-        <span class="etichetta">Riepilogo</span>
-        <div id="riepilogo-durata" class="riepilogo-durata"></div>
-        <label class="campo">
-          <span>Nome</span>
-          <input type="text" id="allenamento-nome" list="nomi-allenamenti" placeholder="es. Push, Gambe" maxlength="40" autocomplete="off" required>
-        </label>
-        <datalist id="nomi-allenamenti"></datalist>
-        <label class="campo">
-          <span>Nota</span>
-          <textarea id="allenamento-nota" rows="3" maxlength="300" placeholder="Opzionale"></textarea>
-        </label>
-        <button type="submit" class="btn-primario">Salva allenamento</button>
-        <button type="button" id="btn-riprendi" class="btn-testo">Torna all'allenamento</button>
-      </form>
-
-      <!-- Riepilogo numerico -->
-      <h2 class="sezione">Riepilogo</h2>
-      <div class="griglia-stat">
-        <div class="stat">
-          <span class="stat-etichetta"><svg class="ico"><use href="#i-manubrio"/></svg>Sedute · sett.</span>
-          <span id="stat-sett-num" class="stat-valore">0</span>
-        </div>
-        <div class="stat">
-          <span class="stat-etichetta"><svg class="ico"><use href="#i-orologio"/></svg>Tempo · sett.</span>
-          <span id="stat-sett-tempo" class="stat-valore">0 min</span>
-        </div>
-        <div class="stat">
-          <span class="stat-etichetta"><svg class="ico"><use href="#i-calendario"/></svg>Sedute · mese</span>
-          <span id="stat-mese-num" class="stat-valore">0</span>
-        </div>
-        <div class="stat">
-          <span class="stat-etichetta"><svg class="ico"><use href="#i-cronometro"/></svg>Media · mese</span>
-          <span id="stat-media" class="stat-valore">0 min</span>
-        </div>
-      </div>
-
-      <!-- Storico -->
-      <h2 class="sezione">Storico</h2>
-      <ul id="storico" class="lista lista-apribile"></ul>
-      <p id="storico-vuoto" class="nota">Nessun allenamento salvato.</p>
-      <p id="storico-aiuto" class="nota">Tocca un allenamento per modificarlo.</p>
+      <div class="vuoto">Tastierino, categorie e riepilogo del mese. In costruzione.</div>
     </section>
 
-    <!-- ========== Vista Corsa ========== -->
-    <section id="vista-corsa" class="vista">
+    <!-- ========== Vista Salute (Sonno, Corsa, Palestra) ========== -->
+    <section id="vista-salute" class="vista">
       <header class="titolo">
         <span class="data-oggi"></span>
-        <h1>Corsa</h1>
+        <div class="titolo-riga">
+          <h1>Salute</h1>
+          <button type="button" class="btn-ingranaggio" data-impostazioni aria-label="Impostazioni"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h9"/><path d="M19 6h1"/><circle cx="16" cy="6" r="2.5"/><path d="M4 12h3"/><path d="M13 12h7"/><circle cx="10" cy="12" r="2.5"/><path d="M4 18h11"/><circle cx="18" cy="18" r="2.5"/></svg></button>
+        </div>
       </header>
-
-      <div id="corsa-vuoto" class="vuoto" hidden>
-        Nessuna corsa disponibile. Collega Intervals.icu in Impostazioni e tocca "Sincronizza ora".
+      <div class="sottoschede">
+        <button type="button" class="sottoscheda" data-sotto="sonno">Sonno</button>
+        <button type="button" class="sottoscheda" data-sotto="corsa">Corsa</button>
+        <button type="button" class="sottoscheda" data-sotto="palestra">Palestra</button>
       </div>
+      <div id="sotto-sonno" class="sottovista">
+              <div id="sonno-vuoto" class="vuoto" hidden>
+                Nessuna notte registrata. Dormi con il Suunto al polso e sincronizza: i dati arrivano da Intervals.icu.
+              </div>
 
-      <div id="corsa-contenuto">
-        <!-- Ultima corsa (riempito dal codice) -->
-        <div id="corsa-ultima" class="card hero cliccabile"></div>
+              <div id="sonno-contenuto">
+                <!-- Ultima notte (riempito dal codice) -->
+                <div id="sonno-ultima" class="card hero"></div>
 
-        <!-- Riepilogo numerico -->
-        <h2 class="sezione">Riepilogo</h2>
-        <div class="griglia-stat">
-          <div class="stat">
-            <span class="stat-etichetta"><svg class="ico"><use href="#i-percorso"/></svg>Km · sett.</span>
-            <span id="stat-corsa-sett-km" class="stat-valore">0 km</span>
-          </div>
-          <div class="stat">
-            <span class="stat-etichetta"><svg class="ico"><use href="#i-bandiera"/></svg>Corse · sett.</span>
-            <span id="stat-corsa-sett-num" class="stat-valore">0</span>
-          </div>
-          <div class="stat">
-            <span class="stat-etichetta"><svg class="ico"><use href="#i-percorso"/></svg>Km · mese</span>
-            <span id="stat-corsa-mese-km" class="stat-valore">0 km</span>
-          </div>
-          <div class="stat">
-            <span class="stat-etichetta"><svg class="ico"><use href="#i-tachimetro"/></svg>Passo · mese</span>
-            <span id="stat-corsa-mese-passo" class="stat-valore">n/d</span>
-          </div>
-          <div class="stat">
-            <span class="stat-etichetta"><svg class="ico"><use href="#i-cuore"/></svg>FC media · mese</span>
-            <span id="stat-corsa-mese-fc" class="stat-valore">n/d</span>
-          </div>
-          <div class="stat">
-            <span class="stat-etichetta"><svg class="ico"><use href="#i-montagna"/></svg>Salita · mese</span>
-            <span id="stat-corsa-mese-disl" class="stat-valore">0 m</span>
-          </div>
-        </div>
+                <!-- Medie degli ultimi 7 giorni -->
+                <h2 class="sezione">Ultimi 7 giorni</h2>
+                <div class="griglia-stat">
+                  <div class="stat">
+                    <span class="stat-etichetta"><svg class="ico"><use href="#i-luna"/></svg>Sonno medio</span>
+                    <span id="stat-sonno-media" class="stat-valore">n/d</span>
+                  </div>
+                  <div class="stat">
+                    <span class="stat-etichetta"><svg class="ico"><use href="#i-bersaglio"/></svg>Punteggio</span>
+                    <span id="stat-sonno-punteggio" class="stat-valore">n/d</span>
+                  </div>
+                  <div class="stat">
+                    <span class="stat-etichetta"><svg class="ico"><use href="#i-cuore"/></svg>FC a riposo</span>
+                    <span id="stat-sonno-fc" class="stat-valore">n/d</span>
+                  </div>
+                  <div class="stat">
+                    <span class="stat-etichetta"><svg class="ico"><use href="#i-battito"/></svg>HRV</span>
+                    <span id="stat-sonno-hrv" class="stat-valore">n/d</span>
+                  </div>
+                </div>
+                <p id="sonno-notti-7" class="nota"></p>
 
-        <!-- Grafico: km per settimana -->
-        <h2 class="sezione">Km per settimana</h2>
-        <div class="grafico">
-          <div id="info-km" class="grafico-info"></div>
-          <div id="grafico-km"></div>
-          <div class="grafico-didascalia">ultime 8 settimane</div>
-        </div>
+                <!-- Grafico: ore di sonno -->
+                <h2 class="sezione">Ore di sonno</h2>
+                <div class="grafico">
+                  <div id="info-sonno" class="grafico-info"></div>
+                  <div id="grafico-sonno"></div>
+                  <div class="grafico-didascalia">ultime 14 notti</div>
+                </div>
 
-        <!-- Grafico: passo medio delle ultime corse -->
-        <h2 class="sezione">Passo medio per corsa</h2>
-        <div class="grafico">
-          <div id="info-passo" class="grafico-info"></div>
-          <div id="grafico-passo"></div>
-          <div class="grafico-didascalia">↑ più veloce · esclusi i passi anomali</div>
-        </div>
+                <!-- Grafico: HRV -->
+                <h2 class="sezione">HRV notturna</h2>
+                <div class="grafico">
+                  <div id="info-hrv" class="grafico-info"></div>
+                  <div id="grafico-hrv"></div>
+                  <div class="grafico-didascalia">↑ più alta del solito = recupero migliore</div>
+                </div>
 
-        <!-- Storico -->
-        <h2 class="sezione">Storico corse</h2>
-        <ul id="corsa-storico" class="lista lista-apribile"></ul>
+                <!-- Grafico: FC a riposo -->
+                <h2 class="sezione">FC a riposo</h2>
+                <div class="grafico">
+                  <div id="info-fc-riposo" class="grafico-info"></div>
+                  <div id="grafico-fc-riposo"></div>
+                  <div class="grafico-didascalia">↓ più bassa del solito = recupero migliore</div>
+                </div>
+
+                <!-- Storico -->
+                <h2 class="sezione">Storico notti</h2>
+                <ul id="sonno-storico" class="lista"></ul>
+              </div>
+
+              <p id="sonno-fonte" class="nota"></p>
+              <div class="centrato">
+                <button id="btn-sync-sonno" class="btn-testo">Sincronizza ora</button>
+              </div>
       </div>
+      <div id="sotto-corsa" class="sottovista">
+              <div id="corsa-vuoto" class="vuoto" hidden>
+                Nessuna corsa disponibile. Collega Intervals.icu in Impostazioni e tocca "Sincronizza ora".
+              </div>
 
-      <p id="corsa-fonte" class="nota"></p>
-      <div class="centrato">
-        <button id="btn-sync-corsa" class="btn-testo">Sincronizza ora</button>
+              <div id="corsa-contenuto">
+                <!-- Ultima corsa (riempito dal codice) -->
+                <div id="corsa-ultima" class="card hero cliccabile"></div>
+
+                <!-- Riepilogo numerico -->
+                <h2 class="sezione">Riepilogo</h2>
+                <div class="griglia-stat">
+                  <div class="stat">
+                    <span class="stat-etichetta"><svg class="ico"><use href="#i-percorso"/></svg>Km · sett.</span>
+                    <span id="stat-corsa-sett-km" class="stat-valore">0 km</span>
+                  </div>
+                  <div class="stat">
+                    <span class="stat-etichetta"><svg class="ico"><use href="#i-bandiera"/></svg>Corse · sett.</span>
+                    <span id="stat-corsa-sett-num" class="stat-valore">0</span>
+                  </div>
+                  <div class="stat">
+                    <span class="stat-etichetta"><svg class="ico"><use href="#i-percorso"/></svg>Km · mese</span>
+                    <span id="stat-corsa-mese-km" class="stat-valore">0 km</span>
+                  </div>
+                  <div class="stat">
+                    <span class="stat-etichetta"><svg class="ico"><use href="#i-tachimetro"/></svg>Passo · mese</span>
+                    <span id="stat-corsa-mese-passo" class="stat-valore">n/d</span>
+                  </div>
+                  <div class="stat">
+                    <span class="stat-etichetta"><svg class="ico"><use href="#i-cuore"/></svg>FC media · mese</span>
+                    <span id="stat-corsa-mese-fc" class="stat-valore">n/d</span>
+                  </div>
+                  <div class="stat">
+                    <span class="stat-etichetta"><svg class="ico"><use href="#i-montagna"/></svg>Salita · mese</span>
+                    <span id="stat-corsa-mese-disl" class="stat-valore">0 m</span>
+                  </div>
+                </div>
+
+                <!-- Grafico: km per settimana -->
+                <h2 class="sezione">Km per settimana</h2>
+                <div class="grafico">
+                  <div id="info-km" class="grafico-info"></div>
+                  <div id="grafico-km"></div>
+                  <div class="grafico-didascalia">ultime 8 settimane</div>
+                </div>
+
+                <!-- Grafico: passo medio delle ultime corse -->
+                <h2 class="sezione">Passo medio per corsa</h2>
+                <div class="grafico">
+                  <div id="info-passo" class="grafico-info"></div>
+                  <div id="grafico-passo"></div>
+                  <div class="grafico-didascalia">↑ più veloce · esclusi i passi anomali</div>
+                </div>
+
+                <!-- Storico -->
+                <h2 class="sezione">Storico corse</h2>
+                <ul id="corsa-storico" class="lista lista-apribile"></ul>
+              </div>
+
+              <p id="corsa-fonte" class="nota"></p>
+              <div class="centrato">
+                <button id="btn-sync-corsa" class="btn-testo">Sincronizza ora</button>
+              </div>
+      </div>
+      <div id="sotto-palestra" class="sottovista">
+              <!-- Stato 1: nessun allenamento in corso -->
+              <div id="palestra-inattivo" class="card">
+                <button id="btn-inizia" class="btn-primario btn-grande">Inizia allenamento</button>
+              </div>
+
+              <!-- Stato 2: allenamento in corso -->
+              <div id="palestra-incorso" class="card centro" hidden>
+                <span class="etichetta">Allenamento in corso</span>
+                <div id="cronometro" class="cronometro">00:00:00</div>
+                <span id="inizio-alle" class="testo-sec"></span>
+                <button id="btn-apri-hevy" class="btn-secondario">Apri Hevy</button>
+                <button id="btn-termina" class="btn-primario">Termina allenamento</button>
+                <button id="btn-annulla" class="btn-testo btn-rosso">Annulla allenamento</button>
+              </div>
+
+              <!-- Stato 3: salvataggio dopo "Termina" -->
+              <form id="palestra-salva" class="card" hidden>
+                <span class="etichetta">Riepilogo</span>
+                <div id="riepilogo-durata" class="riepilogo-durata"></div>
+                <label class="campo">
+                  <span>Nome</span>
+                  <input type="text" id="allenamento-nome" list="nomi-allenamenti" placeholder="es. Push, Gambe" maxlength="40" autocomplete="off" required>
+                </label>
+                <datalist id="nomi-allenamenti"></datalist>
+                <label class="campo">
+                  <span>Nota</span>
+                  <textarea id="allenamento-nota" rows="3" maxlength="300" placeholder="Opzionale"></textarea>
+                </label>
+                <button type="submit" class="btn-primario">Salva allenamento</button>
+                <button type="button" id="btn-riprendi" class="btn-testo">Torna all'allenamento</button>
+              </form>
+
+              <!-- Riepilogo numerico -->
+              <h2 class="sezione">Riepilogo</h2>
+              <div class="griglia-stat">
+                <div class="stat">
+                  <span class="stat-etichetta"><svg class="ico"><use href="#i-manubrio"/></svg>Sedute · sett.</span>
+                  <span id="stat-sett-num" class="stat-valore">0</span>
+                </div>
+                <div class="stat">
+                  <span class="stat-etichetta"><svg class="ico"><use href="#i-orologio"/></svg>Tempo · sett.</span>
+                  <span id="stat-sett-tempo" class="stat-valore">0 min</span>
+                </div>
+                <div class="stat">
+                  <span class="stat-etichetta"><svg class="ico"><use href="#i-calendario"/></svg>Sedute · mese</span>
+                  <span id="stat-mese-num" class="stat-valore">0</span>
+                </div>
+                <div class="stat">
+                  <span class="stat-etichetta"><svg class="ico"><use href="#i-cronometro"/></svg>Media · mese</span>
+                  <span id="stat-media" class="stat-valore">0 min</span>
+                </div>
+              </div>
+
+              <!-- Storico -->
+              <h2 class="sezione">Storico</h2>
+              <ul id="storico" class="lista lista-apribile"></ul>
+              <p id="storico-vuoto" class="nota">Nessun allenamento salvato.</p>
+              <p id="storico-aiuto" class="nota">Tocca un allenamento per modificarlo.</p>
       </div>
     </section>
 
-    <!-- ========== Vista Impostazioni ========== -->
+    <!-- ========== Vista Pesca ========== -->
+    <section id="vista-pesca" class="vista">
+      <header class="titolo">
+        <span class="data-oggi"></span>
+        <div class="titolo-riga">
+          <h1>Pesca</h1>
+          <button type="button" class="btn-ingranaggio" data-impostazioni aria-label="Impostazioni"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h9"/><path d="M19 6h1"/><circle cx="16" cy="6" r="2.5"/><path d="M4 12h3"/><path d="M13 12h7"/><circle cx="10" cy="12" r="2.5"/><path d="M4 18h11"/><circle cx="18" cy="18" r="2.5"/></svg></button>
+        </div>
+      </header>
+      <div class="vuoto">Marea, corrente, pressione e diario delle uscite. In costruzione.</div>
+    </section>
+
+    <!-- ========== Vista Impostazioni (si apre con l'ingranaggio) ========== -->
     <section id="vista-impostazioni" class="vista">
       <header class="titolo">
         <span class="data-oggi"></span>
-        <h1>Impostazioni</h1>
+        <div class="titolo-riga">
+          <h1>Impostazioni</h1>
+          <button type="button" id="btn-chiudi-impostazioni" class="btn-testo">Chiudi</button>
+        </div>
       </header>
+            <!-- Collegamento a Intervals.icu (dati del Suunto) -->
+            <h2 class="sezione">Intervals.icu</h2>
+            <div class="card">
+              <label class="campo">
+                <span>Chiave API</span>
+                <input type="password" id="intervals-chiave" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Incolla la chiave API">
+              </label>
+              <button id="btn-salva-chiave" class="btn-secondario">Salva chiave</button>
+              <button id="btn-sincronizza" class="btn-primario">Sincronizza ora</button>
+              <span id="stato-sync" class="testo-sec" style="text-align: center;"></span>
+            </div>
+            <p id="esito-sync" class="esito"></p>
+            <p class="nota">La chiave resta solo su questo iPhone e non entra nel backup.</p>
 
-      <!-- Collegamento a Intervals.icu (dati del Suunto) -->
-      <h2 class="sezione">Intervals.icu</h2>
-      <div class="card">
-        <label class="campo">
-          <span>Chiave API</span>
-          <input type="password" id="intervals-chiave" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Incolla la chiave API">
-        </label>
-        <button id="btn-salva-chiave" class="btn-secondario">Salva chiave</button>
-        <button id="btn-sincronizza" class="btn-primario">Sincronizza ora</button>
-        <span id="stato-sync" class="testo-sec" style="text-align: center;"></span>
-      </div>
-      <p id="esito-sync" class="esito"></p>
-      <p class="nota">La chiave resta solo su questo iPhone e non entra nel backup.</p>
-
-      <!-- Backup -->
-      <h2 class="sezione">Backup</h2>
-      <div class="card centro">
-        <button id="btn-esporta" class="btn-secondario">Esporta backup</button>
-        <button id="btn-importa" class="btn-secondario">Importa backup</button>
-        <input type="file" id="file-backup" accept=".json,application/json" hidden>
-        <span id="ultimo-backup" class="testo-sec"></span>
-      </div>
-      <p id="esito-backup" class="esito"></p>
-      <p class="nota">I dati sono salvati solo su questo iPhone: esporta un backup ogni settimana e salvalo su iCloud Drive.</p>
+            <!-- Backup -->
+            <h2 class="sezione">Backup</h2>
+            <div class="card centro">
+              <button id="btn-esporta" class="btn-secondario">Esporta backup</button>
+              <button id="btn-importa" class="btn-secondario">Importa backup</button>
+              <input type="file" id="file-backup" accept=".json,application/json" hidden>
+              <span id="ultimo-backup" class="testo-sec"></span>
+            </div>
+            <p id="esito-backup" class="esito"></p>
+            <p class="nota">I dati sono salvati solo su questo iPhone: esporta un backup ogni settimana e salvalo su iCloud Drive.</p>
     </section>
   </main>
 
@@ -352,56 +388,28 @@
     </div>
   </div>
 
+
   <!-- Barra delle schede in basso -->
   <nav class="tabbar">
-    <button class="tab" data-vista="sveglia">
-      <svg viewBox="0 0 24 24" width="25" height="25" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="12" cy="13" r="7"/>
-        <path d="M12 10v3h2"/>
-        <path d="M7 4L4.25 6"/>
-        <path d="M17 4l2.75 2"/>
-      </svg>
-      <span>Sveglia</span>
+    <button class="tab" data-vista="oggi">
+      <svg viewBox="0 0 24 24" width="25" height="25" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7.5" height="7.5" rx="2"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="2"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="2"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="2"/></svg>
+      <span>Oggi</span>
     </button>
-    <button class="tab" data-vista="sonno">
-      <svg viewBox="0 0 24 24" width="25" height="25" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M12 3h.4a7.5 7.5 0 0 0 7.9 12.4A9 9 0 1 1 12 3z"/>
-      </svg>
-      <span>Sonno</span>
+    <button class="tab" data-vista="agenda">
+      <svg viewBox="0 0 24 24" width="25" height="25" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2.5"/><path d="M3 10h18M8 3v4M16 3v4"/><path d="M8 14h3"/></svg>
+      <span>Agenda</span>
     </button>
-    <button class="tab" data-vista="palestra">
-      <svg viewBox="0 0 24 24" width="25" height="25" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M2 12h1"/>
-        <path d="M6 8H4a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"/>
-        <rect x="6" y="6" width="3" height="12" rx="1"/>
-        <path d="M9 12h6"/>
-        <rect x="15" y="6" width="3" height="12" rx="1"/>
-        <path d="M18 8h2a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-2"/>
-        <path d="M22 12h-1"/>
-      </svg>
-      <span>Palestra</span>
+    <button class="tab" data-vista="spese">
+      <svg viewBox="0 0 24 24" width="25" height="25" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 8V6.5A2.5 2.5 0 0 0 17.5 4H5.5A2.5 2.5 0 0 0 3 6.5v11A2.5 2.5 0 0 0 5.5 20h12a2.5 2.5 0 0 0 2.5-2.5V16"/><path d="M21 9.5h-4a2.5 2.5 0 0 0 0 5h4z"/></svg>
+      <span>Spese</span>
     </button>
-    <button class="tab" data-vista="corsa">
-      <svg viewBox="0 0 24 24" width="25" height="25" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="13" cy="4" r="1"/>
-        <path d="M4 17l5 1 .75-1.5"/>
-        <path d="M15 21v-4l-4-3 1-6"/>
-        <path d="M7 12V9l5-1 3 3 3 1"/>
-      </svg>
-      <span>Corsa</span>
+    <button class="tab" data-vista="salute">
+      <svg viewBox="0 0 24 24" width="25" height="25" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19.4 12.6 12 20l-7.4-7.4a4.6 4.6 0 0 1 7.4-5.3 4.6 4.6 0 0 1 7.4 5.3z"/></svg>
+      <span>Salute</span>
     </button>
-    <button class="tab" data-vista="impostazioni">
-      <svg viewBox="0 0 24 24" width="25" height="25" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M4 6h9"/>
-        <path d="M19 6h1"/>
-        <circle cx="16" cy="6" r="2.5"/>
-        <path d="M4 12h3"/>
-        <path d="M13 12h7"/>
-        <circle cx="10" cy="12" r="2.5"/>
-        <path d="M4 18h11"/>
-        <circle cx="18" cy="18" r="2.5"/>
-      </svg>
-      <span>Impostazioni</span>
+    <button class="tab" data-vista="pesca">
+      <svg viewBox="0 0 24 24" width="25" height="25" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 12c0-3.2-3.1-6-7-6-3.6 0-6.6 2.4-8 6 1.4 3.6 4.4 6 8 6 3.9 0 7-2.8 7-6z"/><path d="M16 12l6-4v8z"/><path d="M8.5 10.5h.01"/></svg>
+      <span>Pesca</span>
     </button>
   </nav>
 

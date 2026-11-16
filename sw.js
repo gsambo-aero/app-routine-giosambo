@@ -2,7 +2,7 @@
 // Strategia: prova prima la rete (così gli aggiornamenti arrivano subito),
 // se non risponde entro pochi secondi usa la copia salvata.
 
-const CACHE = 'routine-cache-v2';
+const CACHE = 'routine-cache-v3';
 const FILE_APP = ['./', './index.html', './style.css', './app.js'];
 const ATTESA_RETE_MS = 3000;
 

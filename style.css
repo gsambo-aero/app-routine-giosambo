@@ -28,12 +28,16 @@
   color-scheme: dark; /* selettori di sistema (es. orario) in tema scuro */
 }
 
-/* Un colore per sezione: il codice scrive il nome della scheda in <body data-vista="..."> */
-body[data-vista="sveglia"]      { --accento: #f5a524; --accento-chiaro: #fbc56a; }
+/* Un colore per sezione: il codice scrive in <body data-vista="..."> il nome
+   del contenuto mostrato (dentro Salute vale la sottoscheda aperta) */
+body[data-vista="oggi"]         { --accento: #f5a524; --accento-chiaro: #fbc56a; }
+body[data-vista="agenda"]       { --accento: #f472b6; --accento-chiaro: #f9a8d4; }
+body[data-vista="spese"]        { --accento: #4ade80; --accento-chiaro: #86efac; }
 body[data-vista="sonno"]        { --accento: #a78bfa; --accento-chiaro: #c4b5fd; }
-body[data-vista="palestra"]     { --accento: #4ade80; --accento-chiaro: #86efac; }
 body[data-vista="corsa"]        { --accento: #22d3ee; --accento-chiaro: #67e8f9; }
-body[data-vista="impostazioni"] { --accento: #9aa4b1; --accento-chiaro: #c3cad3; }
+body[data-vista="palestra"]     { --accento: #fb923c; --accento-chiaro: #fdba74; }
+body[data-vista="pesca"]        { --accento: #60a5fa; --accento-chiaro: #93c5fd; }
+/* Le impostazioni tengono il colore della scheda da cui le hai aperte */
 
 * {
   box-sizing: border-box;
@@ -58,9 +62,10 @@ main {
   min-height: 100vh;
 }
 
-/* Le viste sono nascoste, si vede solo quella attiva (con una breve dissolvenza) */
-.vista { display: none; }
-.vista.attiva {
+/* Viste e sottoviste sono nascoste, si vede solo quella attiva (con una breve dissolvenza) */
+.vista, .sottovista { display: none; }
+.vista.attiva,
+.sottovista.attiva {
   display: block;
   animation: entra 0.22s ease-out;
 }
@@ -105,6 +110,23 @@ main {
   text-transform: uppercase;
   color: var(--testo-secondario);
 }
+.titolo-riga {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.btn-ingranaggio {
+  flex: none;
+  padding: 6px;
+  color: var(--testo-secondario);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+.btn-ingranaggio:active { opacity: 0.5; }
+#btn-chiudi-impostazioni { flex: none; padding: 6px 0; }
+
 .titolo h1 {
   display: flex;
   align-items: center;
@@ -141,6 +163,33 @@ main {
   letter-spacing: 1px;
   text-transform: uppercase;
   color: var(--testo-secondario);
+}
+
+/* ---------- Sottoschede (dentro Salute) ---------- */
+.sottoschede {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 3px;
+  margin: 12px 16px 4px;
+  padding: 3px;
+  background: var(--superficie-2);
+  border: 1px solid var(--bordo);
+  border-radius: 12px;
+}
+.sottoscheda {
+  padding: 9px 2px;
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--testo-secondario);
+  background: none;
+  border: none;
+  border-radius: 9px;
+  cursor: pointer;
+}
+.sottoscheda.attiva {
+  color: var(--su-accento);
+  background: var(--accento);
+  font-weight: 600;
 }
 
 /* ---------- Riquadri ---------- */

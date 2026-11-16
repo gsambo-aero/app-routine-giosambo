@@ -164,19 +164,65 @@ document.addEventListener('visibilitychange', () => {
 
 const tabs = document.querySelectorAll('.tab');
 const viste = document.querySelectorAll('.vista');
+const sottoschede = document.querySelectorAll('.sottoscheda');
+const sottoviste = document.querySelectorAll('.sottovista');
+
+const VISTE = ['oggi', 'agenda', 'spese', 'salute', 'pesca'];
+const SOTTOVISTE = ['sonno', 'corsa', 'palestra']; // dentro la scheda Salute
+// Le schede sono cambiate: chi aveva la versione precedente viene portato su quella nuova
+const VISTE_VECCHIE = { sveglia: 'oggi', impostazioni: 'oggi', sonno: 'salute', corsa: 'salute', palestra: 'salute' };
+
+const CHIAVE_SOTTOVISTA = 'ultimaSottovista';
+let sottovistaAttiva = SOTTOVISTE.includes(localStorage.getItem(CHIAVE_SOTTOVISTA))
+  ? localStorage.getItem(CHIAVE_SOTTOVISTA)
+  : 'sonno';
+let vistaPrecedente = 'oggi'; // dove tornare chiudendo le impostazioni
+
+// Sottoschede di Salute: Sonno, Corsa, Palestra
+function mostraSottovista(nome) {
+  sottovistaAttiva = nome;
+  sottoviste.forEach(v => v.classList.toggle('attiva', v.id === 'sotto-' + nome));
+  sottoschede.forEach(b => b.classList.toggle('attiva', b.dataset.sotto === nome));
+  document.body.dataset.vista = nome; // dentro Salute il colore segue la sottoscheda
+  localStorage.setItem(CHIAVE_SOTTOVISTA, nome);
+}
 
 function mostraVista(nome) {
+  if (!VISTE.includes(nome) && nome !== 'impostazioni') nome = VISTE_VECCHIE[nome] || 'oggi';
+
   viste.forEach(v => v.classList.toggle('attiva', v.id === 'vista-' + nome));
   tabs.forEach(t => t.classList.toggle('attiva', t.dataset.vista === nome));
-  document.body.dataset.vista = nome; // lo stile usa questo valore per il colore della sezione
-  localStorage.setItem('ultimaVista', nome);
+
+  // Lo stile usa questo valore per il colore della sezione.
+  // Le impostazioni non ne hanno uno proprio: tengono quello della scheda da cui arrivi.
+  if (nome !== 'impostazioni') document.body.dataset.vista = nome;
+
+  if (nome === 'salute') mostraSottovista(sottovistaAttiva);
+
+  // Le impostazioni non sono una scheda della barra: non diventano la vista da riaprire
+  if (nome !== 'impostazioni') {
+    vistaPrecedente = nome;
+    localStorage.setItem('ultimaVista', nome);
+  }
+  window.scrollTo(0, 0);
 }
 
 tabs.forEach(t => {
   t.addEventListener('click', () => mostraVista(t.dataset.vista));
 });
 
-mostraVista(localStorage.getItem('ultimaVista') || 'sveglia');
+sottoschede.forEach(b => {
+  b.addEventListener('click', () => mostraSottovista(b.dataset.sotto));
+});
+
+// Ingranaggio in alto a destra: apre le impostazioni; "Chiudi" torna alla scheda di prima
+document.querySelectorAll('[data-impostazioni]').forEach(b => {
+  b.addEventListener('click', () => mostraVista('impostazioni'));
+});
+document.getElementById('btn-chiudi-impostazioni')
+  .addEventListener('click', () => mostraVista(vistaPrecedente));
+
+mostraVista(localStorage.getItem('ultimaVista') || 'oggi');
 
 
 // ===================================================
