@@ -232,7 +232,6 @@ mostraVista(localStorage.getItem('ultimaVista') || 'oggi');
 // Un comando rapido per ogni tipo di ripetizione.
 // I nomi devono coincidere esattamente con quelli in Comandi Rapidi.
 // Comandi rapidi che portano un impegno nelle app di sistema, per avere le notifiche
-const COMANDO_PROMEMORIA = 'Routine Promemoria';
 const COMANDO_CALENDARIO = 'Routine Calendario';
 
 const COMANDI_SVEGLIA = {
@@ -1688,25 +1687,25 @@ document.getElementById('form-impegno').addEventListener('submit', e => {
   aggiornaAgenda();
 });
 
-// Routine non puo mandare notifiche: l'avviso lo crea l'app Promemoria o Calendario,
-// tramite un Comando Rapido che riceve "titolo|AAAA-MM-GG|HH:MM"
-function mandaASistema(comando, serveOra) {
+// Routine non puo mandare notifiche: l'avviso lo crea l'app Calendario,
+// tramite un Comando Rapido che riceve "titolo|GG/MM/AAAA HH:MM".
+// L'azione Promemoria di iOS e stata scartata: rifiuta la data di avviso.
+function mandaASistema() {
   // I controlli vengono prima del salvataggio, altrimenti un tentativo
   // fallito lascerebbe comunque una voce nell'agenda
   if (!campoData.value) {
     esitoImpegno.textContent = 'Serve almeno il giorno per creare un avviso.';
     return;
   }
-  if (serveOra && !campoOraImpegno.value) {
-    esitoImpegno.textContent = 'Per il calendario serve anche un orario.';
+  if (!campoOraImpegno.value) {
+    esitoImpegno.textContent = "Per creare l'avviso serve anche un orario.";
     return;
   }
 
   const voce = salvaImpegnoDalPannello();
   if (!voce) return;
 
-  // Senza orario, un promemoria a inizio giornata e inutile: si usano le 9
-  const ora = voce.ora || '09:00';
+  const ora = voce.ora;
   // Si manda "titolo|GG/MM/AAAA HH:MM": due sole parti, cosi nel Comando Rapido
   // bastano il primo e l'ultimo elemento, senza indici da scrivere a mano.
   // La data va in formato italiano perche la legge l'iPhone, non il codice.
@@ -1716,13 +1715,11 @@ function mandaASistema(comando, serveOra) {
   scriviJSON(CHIAVE_AGENDA, leggiAgenda().map(v => v.id !== voce.id ? v : { ...v, avvisato: true }));
   chiudiImpegno();
   aggiornaAgenda();
-  apriComando(comando, voce.titolo + '|' + quando);
+  apriComando(COMANDO_CALENDARIO, voce.titolo + '|' + quando);
 }
 
-document.getElementById('btn-impegno-promemoria')
-  .addEventListener('click', () => mandaASistema(COMANDO_PROMEMORIA, false));
 document.getElementById('btn-impegno-calendario')
-  .addEventListener('click', () => mandaASistema(COMANDO_CALENDARIO, true));
+  .addEventListener('click', () => mandaASistema());
 
 btnEliminaImpegno.addEventListener('click', () => {
   if (!impegnoInModifica) return;
