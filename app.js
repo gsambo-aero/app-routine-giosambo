@@ -2454,6 +2454,268 @@ campoFileBackup.addEventListener('change', async () => {
 mostraUltimoBackup();
 
 
+// ===================================================
+// Casella di arrivo: le frasi dettate arrivano qui
+// ===================================================
+// Il Comando Rapido scrive un file JSON nella cartella "in/" di un repository
+// privato su GitHub. Routine la legge all'apertura, applica e svuota.
+
+const CHIAVE_GH_REPO = 'githubRepo';
+const CHIAVE_GH_TOKEN = 'githubChiave';
+const CHIAVE_ARRIVI_FATTI = 'arriviApplicati';
+const CARTELLA_ARRIVI = 'in';
+const PAUSA_TRA_LETTURE_MS = 30000; // evita di interrogare GitHub a ogni tocco
+
+const campoRepo = document.getElementById('github-repo');
+const campoChiaveGh = document.getElementById('github-chiave');
+const statoGithub = document.getElementById('stato-github');
+const esitoGithub = document.getElementById('esito-github');
+const elArrivi = document.getElementById('arrivi');
+const elArriviTesto = document.getElementById('arrivi-testo');
+
+let ultimaLettura = 0;
+let letturaInCorso = false;
+
+function configurazioneGitHub() {
+  const repo = (localStorage.getItem(CHIAVE_GH_REPO) || '').trim();
+  const chiave = (localStorage.getItem(CHIAVE_GH_TOKEN) || '').trim();
+  return repo && chiave ? { repo, chiave } : null;
+}
+
+async function chiamaGitHub(percorso, opzioni = {}) {
+  const config = configurazioneGitHub();
+  if (!config) throw new Error('Casella di arrivo non configurata.');
+
+  let risposta;
+  try {
+    risposta = await fetch('https://api.github.com/repos/' + config.repo + percorso, {
+    ...opzioni,
+    headers: {
+      Authorization: 'Bearer ' + config.chiave,
+      Accept: 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+      ...(opzioni.body ? { 'Content-Type': 'application/json' } : {})
+    }
+    });
+  } catch {
+    throw new Error('Nessuna rete: riprova quando sei collegato.');
+  }
+
+  if (risposta.status === 404) return null; // cartella o file non ancora creati
+  if (risposta.status === 401) throw new Error('Chiave non valida o scaduta.');
+  if (risposta.status === 403) throw new Error('Accesso negato: controlla i permessi della chiave.');
+  if (!risposta.ok) throw new Error('GitHub ha risposto ' + risposta.status + '.');
+  return risposta.status === 204 ? true : risposta.json();
+}
+
+// I file arrivano in base64: vanno letti come UTF-8, altrimenti gli accenti si rompono
+function daBase64(testo) {
+  const binario = atob(testo.replace(/\s/g, ''));
+  const byte = Uint8Array.from(binario, c => c.charCodeAt(0));
+  return new TextDecoder().decode(byte);
+}
+
+
+// ---------- Applicazione di cio che arriva ----------
+
+// Una spesa dettata: { tipo: 'spesa', importoEuro, categoria, nota, quando, sicuro }
+function applicaSpesaArrivata(dato) {
+  const centesimi = Math.round(Number(dato.importoEuro) * 100);
+  if (!isFinite(centesimi) || centesimi <= 0) return null;
+
+  const categoriaNota = CATEGORIA[dato.categoria] ? dato.categoria : 'altro';
+  const quando = dato.quando && !isNaN(new Date(dato.quando)) ? new Date(dato.quando) : new Date();
+
+  const spesa = {
+    id: 'v' + Date.now().toString() + Math.floor(Math.random() * 1000),
+    importoCent: centesimi,
+    categoria: categoriaNota,
+    nota: (dato.nota || '').toString().slice(0, 80),
+    quando: quando.toISOString(),
+    fonte: 'voce',
+    // Se Claude non era sicuro, o ha scelto una categoria che non esiste,
+    // la spesa resta segnalata invece di essere indovinata
+    daRivedere: dato.sicuro === false || !CATEGORIA[dato.categoria]
+  };
+  scriviJSON(CHIAVE_SPESE, leggiSpese().concat(spesa));
+  return 'spesa';
+}
+
+// Un impegno dettato: { tipo: 'impegno', titolo, data, ora, nota, sicuro }
+function applicaImpegnoArrivato(dato) {
+  const titolo = (dato.titolo || '').toString().trim();
+  if (!titolo) return null;
+
+  const data = /^\d{4}-\d{2}-\d{2}$/.test(dato.data || '') ? dato.data : null;
+  const ora = /^\d{2}:\d{2}$/.test(dato.ora || '') ? dato.ora : null;
+
+  const voce = {
+    id: 'v' + Date.now().toString() + Math.floor(Math.random() * 1000),
+    titolo: titolo.slice(0, 80),
+    data: ora && !data ? giornoISO(new Date()) : data, // un orario senza giorno vale oggi
+    ora,
+    nota: (dato.nota || '').toString().slice(0, 120),
+    fatto: false,
+    fattoIl: null,
+    fonte: 'voce',
+    daRivedere: dato.sicuro === false
+  };
+  scriviJSON(CHIAVE_AGENDA, leggiAgenda().concat(voce));
+  return 'impegno';
+}
+
+function applicaArrivo(dato) {
+  if (!dato || typeof dato !== 'object') return null;
+  if (dato.tipo === 'spesa') return applicaSpesaArrivata(dato);
+  if (dato.tipo === 'impegno' || dato.tipo === 'agenda') return applicaImpegnoArrivato(dato);
+  return null;
+}
+
+
+// ---------- Lettura della casella ----------
+
+function mostraArrivi(conteggi) {
+  const parti = [];
+  if (conteggi.spesa) parti.push(conteggi.spesa + (conteggi.spesa === 1 ? ' spesa' : ' spese'));
+  if (conteggi.impegno) parti.push(conteggi.impegno + (conteggi.impegno === 1 ? ' impegno' : ' impegni'));
+  if (!parti.length) return;
+  elArriviTesto.textContent = 'Arrivati dalla voce: ' + parti.join(' e ') + '.';
+  elArrivi.hidden = false;
+}
+
+document.getElementById('arrivi-chiudi').addEventListener('click', () => { elArrivi.hidden = true; });
+
+async function leggiCasella(manuale) {
+  if (letturaInCorso) return;
+  if (!configurazioneGitHub()) {
+    if (manuale) mostraEsitoGitHub('Prima scrivi repository e chiave.', true);
+    return;
+  }
+  if (!manuale && Date.now() - ultimaLettura < PAUSA_TRA_LETTURE_MS) return;
+
+  letturaInCorso = true;
+  if (manuale) statoGithub.textContent = 'Lettura in corso...';
+
+  try {
+    const elenco = await chiamaGitHub('/contents/' + CARTELLA_ARRIVI);
+    ultimaLettura = Date.now();
+
+    const file = Array.isArray(elenco) ? elenco.filter(f => f.type === 'file' && f.name.endsWith('.json')) : [];
+    if (file.length === 0) {
+      if (manuale) {
+        statoGithub.textContent = '';
+        mostraEsitoGitHub('Casella vuota.', false);
+      }
+      return;
+    }
+
+    // I nomi dei file gia applicati restano in memoria: se la cancellazione
+    // non riesce, al giro dopo il dato non viene inserito due volte
+    const fatti = leggiJSON(CHIAVE_ARRIVI_FATTI, []);
+    const conteggi = { spesa: 0, impegno: 0 };
+    let scartati = 0;
+
+    for (const f of file) {
+      if (fatti.includes(f.name)) { await eliminaDallaCasella(f); continue; }
+      let esito = null;
+      try {
+        const contenuto = await chiamaGitHub('/contents/' + CARTELLA_ARRIVI + '/' + encodeURIComponent(f.name));
+        esito = applicaArrivo(JSON.parse(daBase64(contenuto.content)));
+      } catch {
+        esito = null;
+      }
+      if (esito) {
+        conteggi[esito] += 1;
+        fatti.push(f.name);
+      } else {
+        scartati += 1;
+      }
+      await eliminaDallaCasella(f);
+    }
+
+    scriviJSON(CHIAVE_ARRIVI_FATTI, fatti.slice(-100));
+    aggiornaAgenda();
+    mostraSpese();
+    mostraArrivi(conteggi);
+
+    if (manuale) {
+      statoGithub.textContent = '';
+      const totale = conteggi.spesa + conteggi.impegno;
+      mostraEsitoGitHub(
+        totale === 0 ? 'Niente di valido nella casella.' : 'Applicati ' + totale + ' arrivi.' +
+        (scartati ? ' ' + scartati + ' non letti.' : ''), false);
+    }
+  } catch (errore) {
+    if (manuale) {
+      statoGithub.textContent = '';
+      mostraEsitoGitHub(errore.message, true);
+    }
+  } finally {
+    letturaInCorso = false;
+  }
+}
+
+async function eliminaDallaCasella(file) {
+  try {
+    await chiamaGitHub('/contents/' + CARTELLA_ARRIVI + '/' + encodeURIComponent(file.name), {
+      method: 'DELETE',
+      body: JSON.stringify({ message: 'Routine: arrivo applicato', sha: file.sha })
+    });
+  } catch {
+    // Se non riesce, il file resta: al giro dopo viene riconosciuto e saltato
+  }
+}
+
+function mostraEsitoGitHub(testo, errore) {
+  esitoGithub.textContent = testo;
+  esitoGithub.classList.toggle('esito-errore', !!errore);
+}
+
+
+// ---------- Impostazioni ----------
+
+campoRepo.value = localStorage.getItem(CHIAVE_GH_REPO) || '';
+campoChiaveGh.value = localStorage.getItem(CHIAVE_GH_TOKEN) || '';
+
+document.getElementById('btn-salva-github').addEventListener('click', async () => {
+  const repo = campoRepo.value.trim().replace(/^https?:\/\/github\.com\//, '').replace(/\/$/, '');
+  const chiave = campoChiaveGh.value.trim();
+  if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) {
+    mostraEsitoGitHub('Scrivi il repository come utente/nome.', true);
+    return;
+  }
+  if (!chiave) {
+    mostraEsitoGitHub('Manca la chiave di accesso.', true);
+    return;
+  }
+  localStorage.setItem(CHIAVE_GH_REPO, repo);
+  localStorage.setItem(CHIAVE_GH_TOKEN, chiave);
+  campoRepo.value = repo;
+
+  statoGithub.textContent = 'Prova in corso...';
+  try {
+    const info = await chiamaGitHub('');
+    statoGithub.textContent = '';
+    if (!info) {
+      mostraEsitoGitHub('Repository non trovato: controlla il nome e che la chiave arrivi a questo repository.', true);
+      return;
+    }
+    mostraEsitoGitHub('Collegato a ' + info.full_name + (info.private ? ' (privato).' : '. Attenzione: e pubblico.'), false);
+  } catch (errore) {
+    statoGithub.textContent = '';
+    mostraEsitoGitHub(errore.message, true);
+  }
+});
+
+document.getElementById('btn-leggi-casella').addEventListener('click', () => leggiCasella(true));
+
+// All'apertura e ogni volta che si torna sull'app
+leggiCasella(false);
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) leggiCasella(false);
+});
+
+
 // Sincronizzazione automatica con Intervals.icu (dopo che tutte le schede sono pronte)
 sincronizzaSeServe();
 

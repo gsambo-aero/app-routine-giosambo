@@ -38,6 +38,11 @@
     <symbol id="i-battito" viewBox="0 0 24 24"><path d="M3 12h4l2-5 4 10 2-5h6"/></symbol>
   </svg>
   <main>
+    <!-- Avviso di cio che arriva dalla casella di arrivo (comandi vocali) -->
+    <div id="arrivi" class="arrivi" hidden>
+      <span id="arrivi-testo"></span>
+      <button type="button" id="arrivi-chiudi" class="arrivi-chiudi" aria-label="Chiudi">&times;</button>
+    </div>
     <!-- ========== Vista Oggi ========== -->
     <section id="vista-oggi" class="vista">
       <header class="titolo">
@@ -433,6 +438,24 @@
             <p class="nota">La chiave resta solo su questo iPhone e non entra nel backup.</p>
 
             <!-- Backup -->
+            <!-- Casella di arrivo: il repository privato dove arrivano le frasi dettate -->
+            <h2 class="sezione">Casella di arrivo</h2>
+            <div class="card">
+              <label class="campo">
+                <span>Repository privato</span>
+                <input type="text" id="github-repo" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="utente/routine-dati">
+              </label>
+              <label class="campo">
+                <span>Chiave di accesso</span>
+                <input type="password" id="github-chiave" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="github_pat_...">
+              </label>
+              <button type="button" id="btn-salva-github" class="btn-secondario">Salva e prova il collegamento</button>
+              <button type="button" id="btn-leggi-casella" class="btn-primario">Leggi la casella ora</button>
+              <span id="stato-github" class="testo-sec centrato"></span>
+            </div>
+            <p id="esito-github" class="esito"></p>
+            <p class="nota">Qui arrivano le frasi dettate con il comando vocale. La chiave resta solo su questo iPhone e non entra nel backup.</p>
+
             <h2 class="sezione">Backup</h2>
             <div class="card centro">
               <button id="btn-esporta" class="btn-secondario">Esporta backup</button>

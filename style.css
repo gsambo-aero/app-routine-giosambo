@@ -1005,6 +1005,31 @@ main {
   color: var(--accento);
 }
 
+
+/* ---------- Avviso degli arrivi dalla voce ---------- */
+.arrivi {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 10px 16px 0;
+  padding: 10px 8px 10px 13px;
+  font-size: 13.5px;
+  background: var(--superficie);
+  border: 1px solid var(--accento);
+  border-radius: 12px;
+}
+.arrivi-chiudi {
+  flex: none;
+  padding: 0 8px;
+  font-size: 22px;
+  line-height: 1;
+  color: var(--testo-secondario);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
 /* ---------- Pannello che si apre dal basso ---------- */
 .velo {
   position: fixed;
