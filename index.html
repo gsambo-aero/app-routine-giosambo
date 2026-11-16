@@ -47,39 +47,28 @@
           <button type="button" class="btn-ingranaggio" data-impostazioni aria-label="Impostazioni"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h9"/><path d="M19 6h1"/><circle cx="16" cy="6" r="2.5"/><path d="M4 12h3"/><path d="M13 12h7"/><circle cx="10" cy="12" r="2.5"/><path d="M4 18h11"/><circle cx="18" cy="18" r="2.5"/></svg></button>
         </div>
       </header>
-      <div class="vuoto">Qui arriveranno meteo, impegni del giorno, notizie e il riepilogo di salute e spese.</div>
-      <h2 class="sezione">Sveglia</h2>
-            <form id="form-sveglia" class="card">
-              <label class="campo">
-                <span>Ora</span>
-                <input type="time" id="sveglia-ora" value="07:00" required>
-              </label>
-              <label class="campo">
-                <span>Nome</span>
-                <input type="text" id="sveglia-nome" placeholder="Sveglia" maxlength="40" autocomplete="off">
-              </label>
-              <div class="campo">
-                <span>Ripeti</span>
-                <div class="segmenti">
-                  <label><input type="radio" name="ripeti" value="una" checked><span>Una volta</span></label>
-                  <label><input type="radio" name="ripeti" value="feriali"><span>Lun-Ven</span></label>
-                  <label><input type="radio" name="ripeti" value="ogni"><span>Ogni giorno</span></label>
-                  <label><input type="radio" name="ripeti" value="weekend"><span>Weekend</span></label>
-                </div>
-              </div>
-              <button type="submit" class="btn-primario">Imposta sveglia</button>
-              <button type="button" id="btn-salva-preferita" class="btn-testo">Salva come preferita</button>
-            </form>
+      <!-- La giornata: appuntamenti e cose da fare di oggi -->
+      <div class="card giornata">
+        <div class="hero-testa">
+          <span class="etichetta">La tua giornata</span>
+          <button type="button" class="hero-link btn-vai" data-vai="agenda">Agenda &rsaquo;</button>
+        </div>
+        <div id="giornata-riassunto" class="testo-sec"></div>
+        <div id="giornata-elenco" class="giornata-elenco"></div>
+      </div>
 
-            <p id="sveglia-esito" class="esito"></p>
+      <!-- Sveglia in forma compatta: le preferite si impostano con un tocco -->
+      <div class="card">
+        <div class="hero-testa">
+          <span class="etichetta">Sveglia</span>
+          <button type="button" id="btn-apri-sveglia" class="hero-link">Tutte le sveglie &rsaquo;</button>
+        </div>
+        <ul id="sveglia-rapide" class="rapide"></ul>
+        <p id="sveglia-rapide-vuoto" class="testo-sec centrato">Nessuna sveglia preferita: aprile per impostarne una.</p>
+        <p id="sveglia-esito" class="esito"></p>
+      </div>
 
-            <!-- Sveglie preferite -->
-            <h2 class="sezione">Preferite</h2>
-            <ul id="preferite" class="lista"></ul>
-            <p id="preferite-vuoto" class="nota">Nessuna preferita. Scegli ora, nome e ripetizione, poi tocca "Salva come preferita".</p>
-            <p id="preferite-aiuto" class="nota">Tocca per impostare, × per eliminare.</p>
-
-            <p class="nota">Le sveglie si creano nell'app Orologio: disattivale o eliminale da lì.</p>
+      <div class="vuoto">Qui arriveranno meteo, notizie e il riepilogo di salute e spese di oggi.</div>
     </section>
 
     <!-- ========== Vista Agenda ========== -->
@@ -88,10 +77,18 @@
         <span class="data-oggi"></span>
         <div class="titolo-riga">
           <h1>Agenda</h1>
+          <button type="button" id="btn-nuovo-impegno" class="btn-piu" aria-label="Nuovo impegno">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+          </button>
           <button type="button" class="btn-ingranaggio" data-impostazioni aria-label="Impostazioni"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h9"/><path d="M19 6h1"/><circle cx="16" cy="6" r="2.5"/><path d="M4 12h3"/><path d="M13 12h7"/><circle cx="10" cy="12" r="2.5"/><path d="M4 18h11"/><circle cx="18" cy="18" r="2.5"/></svg></button>
         </div>
       </header>
-      <div class="vuoto">Impegni e cose da fare, da aggiungere anche a voce. In costruzione.</div>
+      <div class="sottoschede due">
+        <button type="button" class="sottoscheda-agenda" data-agenda="dafare">Da fare</button>
+        <button type="button" class="sottoscheda-agenda" data-agenda="fatti">Fatti</button>
+      </div>
+      <div id="agenda-elenco"></div>
+      <p id="agenda-vuoto" class="nota"></p>
     </section>
 
     <!-- ========== Vista Spese ========== -->
@@ -487,6 +484,80 @@
     </div>
   </div>
 
+
+  <!-- Pannello sveglia (si apre dalla scheda Oggi) -->
+  <div id="velo-sveglia" class="velo" hidden>
+    <div class="foglio">
+      <h3>Sveglia</h3>
+            <form id="form-sveglia" class="card">
+              <label class="campo">
+                <span>Ora</span>
+                <input type="time" id="sveglia-ora" value="07:00" required>
+              </label>
+              <label class="campo">
+                <span>Nome</span>
+                <input type="text" id="sveglia-nome" placeholder="Sveglia" maxlength="40" autocomplete="off">
+              </label>
+              <div class="campo">
+                <span>Ripeti</span>
+                <div class="segmenti">
+                  <label><input type="radio" name="ripeti" value="una" checked><span>Una volta</span></label>
+                  <label><input type="radio" name="ripeti" value="feriali"><span>Lun-Ven</span></label>
+                  <label><input type="radio" name="ripeti" value="ogni"><span>Ogni giorno</span></label>
+                  <label><input type="radio" name="ripeti" value="weekend"><span>Weekend</span></label>
+                </div>
+              </div>
+              <button type="submit" class="btn-primario">Imposta sveglia</button>
+              <button type="button" id="btn-salva-preferita" class="btn-testo">Salva come preferita</button>
+            </form>
+
+            <p id="sveglia-esito-pannello" class="esito"></p>
+
+            <!-- Sveglie preferite -->
+            <h2 class="sezione">Preferite</h2>
+            <ul id="preferite" class="lista"></ul>
+            <p id="preferite-vuoto" class="nota">Nessuna preferita. Scegli ora, nome e ripetizione, poi tocca "Salva come preferita".</p>
+            <p id="preferite-aiuto" class="nota">Tocca per impostare, × per eliminare.</p>
+
+            <p class="nota">Le sveglie si creano nell'app Orologio: disattivale o eliminale da lì.</p>
+      <button type="button" id="btn-chiudi-sveglia" class="btn-secondario">Chiudi</button>
+    </div>
+  </div>
+
+  <!-- Pannello impegno (nuovo o da modificare) -->
+  <div id="velo-impegno" class="velo" hidden>
+    <form id="form-impegno" class="foglio">
+      <h3 id="impegno-titolo-pannello">Nuovo impegno</h3>
+      <label class="campo">
+        <span>Che cosa</span>
+        <input type="text" id="impegno-titolo" maxlength="80" autocomplete="off" placeholder="es. Dentista" required>
+      </label>
+      <div class="campo-doppio">
+        <label class="campo">
+          <span>Giorno</span>
+          <input type="date" id="impegno-data">
+        </label>
+        <label class="campo">
+          <span>Ora</span>
+          <input type="time" id="impegno-ora">
+        </label>
+      </div>
+      <div class="scorciatoie">
+        <button type="button" class="btn-chip" data-giorno="oggi">Oggi</button>
+        <button type="button" class="btn-chip" data-giorno="domani">Domani</button>
+        <button type="button" class="btn-chip" data-giorno="settimana">Fra 7 giorni</button>
+        <button type="button" class="btn-chip" data-giorno="niente">Senza data</button>
+      </div>
+      <label class="campo">
+        <span>Nota</span>
+        <input type="text" id="impegno-nota" maxlength="120" autocomplete="off" placeholder="Opzionale">
+      </label>
+      <p id="impegno-esito" class="esito esito-errore"></p>
+      <button type="submit" class="btn-primario">Salva</button>
+      <button type="button" id="btn-impegno-elimina" class="btn-secondario btn-rosso" hidden>Elimina</button>
+      <button type="button" id="btn-impegno-chiudi" class="btn-testo">Annulla</button>
+    </form>
+  </div>
 
   <!-- Pannello di modifica spesa (si apre dal basso) -->
   <div id="velo-spesa" class="velo" hidden>

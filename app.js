@@ -248,7 +248,13 @@ const CHIAVE_PREFERITE = 'svegliePreferite'; // elenco di { id, ora, nome, ripet
 const formSveglia = document.getElementById('form-sveglia');
 const campoOra = document.getElementById('sveglia-ora');
 const campoNomeSveglia = document.getElementById('sveglia-nome');
-const esitoSveglia = document.getElementById('sveglia-esito');
+// Il messaggio si vede sia nel riquadro di Oggi sia nel pannello
+const esitoSveglia = {
+  set textContent(testo) {
+    document.getElementById('sveglia-esito').textContent = testo;
+    document.getElementById('sveglia-esito-pannello').textContent = testo;
+  }
+};
 const elPreferite = document.getElementById('preferite');
 const elPreferiteVuoto = document.getElementById('preferite-vuoto');
 const elPreferiteAiuto = document.getElementById('preferite-aiuto');
@@ -329,6 +335,7 @@ function mostraPreferite() {
 
     elPreferite.append(riga);
   });
+  mostraSveglieRapide(); // il riquadro di Oggi mostra le stesse preferite
 }
 
 mostraPreferite();
@@ -1355,6 +1362,457 @@ mostraSonno();
 
 
 // ===================================================
+// Agenda: appuntamenti e cose da fare
+// ===================================================
+
+const CHIAVE_AGENDA = 'agenda';
+const GIORNI_FATTI = 90; // nell'archivio si tengono gli ultimi tre mesi
+
+// Una voce: { id, titolo, data: 'AAAA-MM-GG' o null, ora: 'HH:MM' o null,
+//             nota, fatto, fattoIl, fonte: 'mano' | 'voce', daRivedere }
+// Con l'ora e un appuntamento, senza ora e una cosa da fare.
+
+function leggiAgenda() {
+  return leggiJSON(CHIAVE_AGENDA, []).filter(v => v && v.id && typeof v.titolo === 'string');
+}
+
+// Data locale come 'AAAA-MM-GG': niente fusi orari, niente sorprese
+function giornoISO(d) {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+function dataDaISO(iso) {
+  const [a, m, g] = iso.split('-').map(Number);
+  return new Date(a, m - 1, g);
+}
+
+function giorniDiDifferenza(iso) {
+  const oggi = new Date(); oggi.setHours(0, 0, 0, 0);
+  return Math.round((dataDaISO(iso) - oggi) / 86400000);
+}
+
+function etichettaGiorno(iso) {
+  const d = giorniDiDifferenza(iso);
+  if (d === 0) return 'oggi · ' + dataDaISO(iso).toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric' });
+  if (d === 1) return 'domani · ' + dataDaISO(iso).toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric' });
+  return dataDaISO(iso).toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' });
+}
+
+function quantoFa(iso) {
+  const d = -giorniDiDifferenza(iso);
+  if (d === 1) return 'ieri';
+  return d + ' giorni fa';
+}
+
+// Ordine dentro un giorno: prima gli orari in sequenza, poi le cose senza ora.
+// Se le voci senza ora stessero sopra, un appuntamento potrebbe sfuggire.
+function ordinaNelGiorno(a, b) {
+  if (!!a.ora !== !!b.ora) return a.ora ? -1 : 1;
+  if (a.ora && b.ora && a.ora !== b.ora) return a.ora < b.ora ? -1 : 1;
+  return a.titolo.localeCompare(b.titolo);
+}
+
+function raggruppaAgenda(voci) {
+  const oggi = giornoISO(new Date());
+  const scadute = [], senzaData = [];
+  const giorni = new Map();
+
+  voci.forEach(v => {
+    if (!v.data) { senzaData.push(v); return; }
+    if (v.data < oggi) { scadute.push(v); return; }
+    if (!giorni.has(v.data)) giorni.set(v.data, []);
+    giorni.get(v.data).push(v);
+  });
+
+  scadute.sort((a, b) => a.data.localeCompare(b.data) || ordinaNelGiorno(a, b));
+  senzaData.sort((a, b) => a.titolo.localeCompare(b.titolo));
+  const ordinati = [...giorni.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  ordinati.forEach(([, lista]) => lista.sort(ordinaNelGiorno));
+  return { scadute, giorni: ordinati, senzaData };
+}
+
+
+// ---------- Disegno delle righe ----------
+
+function creaVoceAgenda(v, opzioni) {
+  const riga = document.createElement('li');
+  riga.className = 'voce' + (opzioni.scaduta ? ' scaduta' : '') + (v.fatto ? ' fatta' : '');
+
+  if (v.ora && !v.fatto) {
+    const ora = document.createElement('span');
+    ora.className = 'voce-ora mono';
+    ora.textContent = v.ora;
+    riga.append(ora);
+  } else {
+    const cerchio = document.createElement('button');
+    cerchio.type = 'button';
+    cerchio.className = 'voce-cerchio' + (v.fatto ? ' fatto' : '');
+    cerchio.setAttribute('aria-label', v.fatto ? 'Da rifare' : 'Segna come fatto');
+    cerchio.addEventListener('click', e => { e.stopPropagation(); segnaFatto(v.id, !v.fatto); });
+    riga.append(cerchio);
+  }
+
+  const centro = document.createElement('div');
+  centro.className = 'voce-centro';
+  const titolo = document.createElement('div');
+  titolo.className = 'voce-titolo';
+  titolo.textContent = v.titolo;
+  if (v.daRivedere) {
+    const segno = document.createElement('span');
+    segno.className = 'da-rivedere';
+    segno.textContent = 'DA RIVEDERE';
+    titolo.append(segno);
+  }
+  centro.append(titolo);
+
+  const dettagli = [];
+  if (opzioni.scaduta) dettagli.push(etichettaGiorno(v.data) + ' · ' + quantoFa(v.data));
+  if (opzioni.conGiorno && v.data) dettagli.push(etichettaGiorno(v.data));
+  if (v.ora && (opzioni.scaduta || v.fatto)) dettagli.push(v.ora);
+  if (v.nota) dettagli.push(v.nota);
+  if (dettagli.length) {
+    const sotto = document.createElement('div');
+    sotto.className = 'voce-sotto';
+    sotto.textContent = dettagli.join(' · ');
+    centro.append(sotto);
+  }
+  riga.append(centro);
+
+  // Sullo scaduto una freccia porta la voce a oggi, senza aprire niente
+  if (opzioni.scaduta) {
+    const aOggi = document.createElement('button');
+    aOggi.type = 'button';
+    aOggi.className = 'voce-azione';
+    aOggi.setAttribute('aria-label', 'Sposta a oggi');
+    aOggi.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" ' +
+      'stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h15"/><path d="M13 6l6 6-6 6"/></svg>';
+    aOggi.addEventListener('click', e => { e.stopPropagation(); spostaAOggi(v.id); });
+    riga.append(aOggi);
+  }
+
+  riga.addEventListener('click', () => apriImpegno(v));
+  return riga;
+}
+
+function creaGruppo(contenitore, titolo, voci, opzioni) {
+  const intestazione = document.createElement('div');
+  intestazione.className = 'gruppo-giorno' + (opzioni.scaduta ? ' scaduto' : '');
+  const nome = document.createElement('span');
+  nome.textContent = titolo;
+  const quante = document.createElement('span');
+  quante.textContent = voci.length;
+  intestazione.append(nome, quante);
+
+  const lista = document.createElement('ul');
+  lista.className = 'lista' + (opzioni.scaduta ? ' lista-scaduta' : '');
+  voci.forEach(v => lista.append(creaVoceAgenda(v, opzioni)));
+
+  contenitore.append(intestazione, lista);
+}
+
+
+// ---------- Le due sottoschede ----------
+
+const elAgenda = document.getElementById('agenda-elenco');
+const elAgendaVuoto = document.getElementById('agenda-vuoto');
+const sottoschedeAgenda = document.querySelectorAll('.sottoscheda-agenda');
+let vistaAgenda = 'dafare';
+
+function mostraAgenda() {
+  const voci = leggiAgenda();
+  elAgenda.innerHTML = '';
+
+  if (vistaAgenda === 'fatti') {
+    const limite = giornoISO(new Date(Date.now() - GIORNI_FATTI * 86400000));
+    const fatti = voci
+      .filter(v => v.fatto && (v.fattoIl || '') >= limite)
+      .sort((a, b) => (b.fattoIl || '').localeCompare(a.fattoIl || ''));
+    elAgendaVuoto.textContent = 'Niente di fatto negli ultimi tre mesi.';
+    elAgendaVuoto.hidden = fatti.length > 0;
+
+    const perGiorno = new Map();
+    fatti.forEach(v => {
+      const g = v.fattoIl || 'senza';
+      if (!perGiorno.has(g)) perGiorno.set(g, []);
+      perGiorno.get(g).push(v);
+    });
+    perGiorno.forEach((lista, g) => {
+      creaGruppo(elAgenda, g === 'senza' ? 'senza data' : etichettaGiorno(g), lista, { conGiorno: false });
+    });
+    return;
+  }
+
+  const { scadute, giorni, senzaData } = raggruppaAgenda(voci.filter(v => !v.fatto));
+  const quante = scadute.length + senzaData.length + giorni.reduce((t, [, l]) => t + l.length, 0);
+  elAgendaVuoto.textContent = 'Niente in programma. Tocca + per aggiungere un impegno.';
+  elAgendaVuoto.hidden = quante > 0;
+
+  if (scadute.length) creaGruppo(elAgenda, 'scaduto', scadute, { scaduta: true });
+  giorni.forEach(([iso, lista]) => creaGruppo(elAgenda, etichettaGiorno(iso), lista, {}));
+  if (senzaData.length) creaGruppo(elAgenda, 'senza data', senzaData, {});
+}
+
+function mostraSottoschedaAgenda(nome) {
+  vistaAgenda = nome;
+  sottoschedeAgenda.forEach(b => b.classList.toggle('attiva', b.dataset.agenda === nome));
+  mostraAgenda();
+}
+
+sottoschedeAgenda.forEach(b => {
+  b.addEventListener('click', () => mostraSottoschedaAgenda(b.dataset.agenda));
+});
+
+function aggiornaAgenda() {
+  mostraAgenda();
+  mostraGiornata();
+}
+
+function segnaFatto(id, fatto) {
+  const voci = leggiAgenda().map(v => v.id !== id ? v : {
+    ...v,
+    fatto,
+    fattoIl: fatto ? giornoISO(new Date()) : null
+  });
+  scriviJSON(CHIAVE_AGENDA, voci);
+  aggiornaAgenda();
+}
+
+function spostaAOggi(id) {
+  const voci = leggiAgenda().map(v => v.id !== id ? v : { ...v, data: giornoISO(new Date()) });
+  scriviJSON(CHIAVE_AGENDA, voci);
+  aggiornaAgenda();
+}
+
+
+// ---------- Pannello: nuovo impegno o modifica ----------
+
+const veloImpegno = document.getElementById('velo-impegno');
+const campoTitolo = document.getElementById('impegno-titolo');
+const campoData = document.getElementById('impegno-data');
+const campoOraImpegno = document.getElementById('impegno-ora');
+const campoNotaImpegno = document.getElementById('impegno-nota');
+const esitoImpegno = document.getElementById('impegno-esito');
+const btnEliminaImpegno = document.getElementById('btn-impegno-elimina');
+let impegnoInModifica = null;
+
+function apriImpegno(voce) {
+  impegnoInModifica = voce || null;
+  document.getElementById('impegno-titolo-pannello').textContent = voce ? 'Modifica impegno' : 'Nuovo impegno';
+  campoTitolo.value = voce ? voce.titolo : '';
+  campoData.value = voce ? (voce.data || '') : giornoISO(new Date());
+  campoOraImpegno.value = voce ? (voce.ora || '') : '';
+  campoNotaImpegno.value = voce ? (voce.nota || '') : '';
+  esitoImpegno.textContent = '';
+  btnEliminaImpegno.hidden = !voce;
+  veloImpegno.hidden = false;
+  if (!voce) campoTitolo.focus();
+}
+
+function chiudiImpegno() {
+  veloImpegno.hidden = true;
+  impegnoInModifica = null;
+}
+
+document.getElementById('btn-nuovo-impegno').addEventListener('click', () => apriImpegno(null));
+document.getElementById('btn-impegno-chiudi').addEventListener('click', chiudiImpegno);
+veloImpegno.addEventListener('click', e => { if (e.target === veloImpegno) chiudiImpegno(); });
+
+// Scorciatoie per il giorno
+document.querySelectorAll('[data-giorno]').forEach(b => {
+  b.addEventListener('click', () => {
+    const scelta = b.dataset.giorno;
+    if (scelta === 'niente') { campoData.value = ''; return; }
+    const d = new Date();
+    if (scelta === 'domani') d.setDate(d.getDate() + 1);
+    if (scelta === 'settimana') d.setDate(d.getDate() + 7);
+    campoData.value = giornoISO(d);
+  });
+});
+
+document.getElementById('form-impegno').addEventListener('submit', e => {
+  e.preventDefault();
+  const titolo = campoTitolo.value.trim();
+  if (!titolo) {
+    esitoImpegno.textContent = 'Scrivi che cosa devi fare.';
+    return;
+  }
+  if (campoOraImpegno.value && !campoData.value) {
+    esitoImpegno.textContent = 'Con un orario serve anche il giorno.';
+    return;
+  }
+
+  const voci = leggiAgenda();
+  if (impegnoInModifica) {
+    scriviJSON(CHIAVE_AGENDA, voci.map(v => v.id !== impegnoInModifica.id ? v : {
+      ...v,
+      titolo,
+      data: campoData.value || null,
+      ora: campoOraImpegno.value || null,
+      nota: campoNotaImpegno.value.trim(),
+      daRivedere: false // controllato a mano
+    }));
+  } else {
+    voci.push({
+      id: Date.now().toString(),
+      titolo,
+      data: campoData.value || null,
+      ora: campoOraImpegno.value || null,
+      nota: campoNotaImpegno.value.trim(),
+      fatto: false,
+      fattoIl: null,
+      fonte: 'mano',
+      daRivedere: false
+    });
+    scriviJSON(CHIAVE_AGENDA, voci);
+  }
+  chiudiImpegno();
+  aggiornaAgenda();
+});
+
+btnEliminaImpegno.addEventListener('click', () => {
+  if (!impegnoInModifica) return;
+  if (!confirm('Eliminare "' + impegnoInModifica.titolo + '"?')) return;
+  scriviJSON(CHIAVE_AGENDA, leggiAgenda().filter(v => v.id !== impegnoInModifica.id));
+  chiudiImpegno();
+  aggiornaAgenda();
+});
+
+
+// ===================================================
+// Scheda Oggi: la giornata e la sveglia in breve
+// ===================================================
+
+function mostraGiornata() {
+  const voci = leggiAgenda().filter(v => !v.fatto);
+  const oggi = giornoISO(new Date());
+  const diOggi = voci.filter(v => v.data === oggi).sort(ordinaNelGiorno);
+  const scadute = voci.filter(v => v.data && v.data < oggi);
+
+  const riassunto = document.getElementById('giornata-riassunto');
+  const elenco = document.getElementById('giornata-elenco');
+  elenco.innerHTML = '';
+
+  if (diOggi.length === 0 && scadute.length === 0) {
+    riassunto.textContent = 'Niente in programma per oggi.';
+    return;
+  }
+
+  const parti = [];
+  const appuntamenti = diOggi.filter(v => v.ora).length;
+  const daFare = diOggi.length - appuntamenti;
+  if (appuntamenti) parti.push(appuntamenti + (appuntamenti === 1 ? ' appuntamento' : ' appuntamenti'));
+  if (daFare) parti.push(daFare + (daFare === 1 ? ' cosa da fare' : ' cose da fare'));
+  if (scadute.length) parti.push(scadute.length + (scadute.length === 1 ? ' scaduta' : ' scadute'));
+  riassunto.textContent = parti.join(', ') + '.';
+
+  // Lo scaduto sta in una riga sola: in Oggi serve il colpo d'occhio
+  if (scadute.length) {
+    const riga = document.createElement('div');
+    riga.className = 'giornata-riga scaduta';
+    const segno = document.createElement('span');
+    segno.className = 'giornata-ora mono';
+    segno.textContent = '!';
+    const centro = document.createElement('div');
+    centro.className = 'voce-centro';
+    const titolo = document.createElement('div');
+    titolo.className = 'voce-titolo';
+    titolo.textContent = scadute.length === 1 ? '1 cosa scaduta' : scadute.length + ' cose scadute';
+    const sotto = document.createElement('div');
+    sotto.className = 'voce-sotto';
+    sotto.textContent = scadute.slice(0, 3).map(v => v.titolo).join(', ') + (scadute.length > 3 ? '...' : '');
+    centro.append(titolo, sotto);
+    riga.append(segno, centro);
+    riga.addEventListener('click', () => mostraVista('agenda'));
+    elenco.append(riga);
+  }
+
+  diOggi.forEach(v => {
+    const riga = document.createElement('div');
+    riga.className = 'giornata-riga';
+
+    if (v.ora) {
+      const ora = document.createElement('span');
+      ora.className = 'giornata-ora mono';
+      ora.textContent = v.ora;
+      riga.append(ora);
+    } else {
+      const spazio = document.createElement('span');
+      spazio.className = 'giornata-ora';
+      const cerchio = document.createElement('button');
+      cerchio.type = 'button';
+      cerchio.className = 'voce-cerchio';
+      cerchio.setAttribute('aria-label', 'Segna come fatto');
+      cerchio.addEventListener('click', e => { e.stopPropagation(); segnaFatto(v.id, true); });
+      spazio.append(cerchio);
+      riga.append(spazio);
+    }
+
+    const centro = document.createElement('div');
+    centro.className = 'voce-centro';
+    const titolo = document.createElement('div');
+    titolo.className = 'voce-titolo';
+    titolo.textContent = v.titolo;
+    centro.append(titolo);
+    if (v.nota) {
+      const sotto = document.createElement('div');
+      sotto.className = 'voce-sotto';
+      sotto.textContent = v.nota;
+      centro.append(sotto);
+    }
+    riga.append(centro);
+    riga.addEventListener('click', () => apriImpegno(v));
+    elenco.append(riga);
+  });
+}
+
+// Sveglie preferite in forma compatta: un tocco le imposta
+function mostraSveglieRapide() {
+  const preferite = leggiJSON(CHIAVE_PREFERITE, []);
+  const elenco = document.getElementById('sveglia-rapide');
+  elenco.innerHTML = '';
+  document.getElementById('sveglia-rapide-vuoto').hidden = preferite.length > 0;
+
+  preferite.slice(0, 3).forEach(p => {
+    const riga = document.createElement('li');
+    riga.className = 'rapida';
+    const ora = document.createElement('span');
+    ora.className = 'rapida-ora mono';
+    ora.textContent = p.ora;
+    const centro = document.createElement('div');
+    centro.className = 'voce-centro';
+    const nome = document.createElement('div');
+    nome.className = 'voce-titolo';
+    nome.textContent = p.nome;
+    const sotto = document.createElement('div');
+    sotto.className = 'voce-sotto';
+    sotto.textContent = ETICHETTE_RIPETI[p.ripeti];
+    centro.append(nome, sotto);
+    const imposta = document.createElement('span');
+    imposta.className = 'rapida-imposta';
+    imposta.textContent = 'Imposta';
+    riga.append(ora, centro, imposta);
+    riga.addEventListener('click', () => impostaSveglia(p));
+    elenco.append(riga);
+  });
+}
+
+// Pannello della sveglia completa
+const veloSveglia = document.getElementById('velo-sveglia');
+document.getElementById('btn-apri-sveglia').addEventListener('click', () => { veloSveglia.hidden = false; });
+document.getElementById('btn-chiudi-sveglia').addEventListener('click', () => { veloSveglia.hidden = true; });
+veloSveglia.addEventListener('click', e => { if (e.target === veloSveglia) veloSveglia.hidden = true; });
+
+// I pulsanti "vai a una scheda" dentro i riquadri di Oggi
+document.querySelectorAll('[data-vai]').forEach(b => {
+  b.addEventListener('click', e => { e.stopPropagation(); mostraVista(b.dataset.vai); });
+});
+
+mostraSottoschedaAgenda('dafare');
+mostraGiornata();
+mostraSveglieRapide();
+
+
+// ===================================================
 // Spese
 // ===================================================
 
@@ -1890,7 +2348,8 @@ document.getElementById('btn-esporta').addEventListener('click', async () => {
     dati: {
       allenamenti: leggiJSON(CHIAVE_ALLENAMENTI, []),
       svegliePreferite: leggiJSON(CHIAVE_PREFERITE, []),
-      spese: leggiSpese()
+      spese: leggiSpese(),
+      agenda: leggiAgenda()
     }
   };
   const nomeFile = 'routine-backup-' + dataPerNomeFile(adesso) + '.json';
@@ -1933,6 +2392,7 @@ campoFileBackup.addEventListener('change', async () => {
     const daBackupAll = Array.isArray(backup.dati.allenamenti) ? backup.dati.allenamenti : [];
     const daBackupPref = Array.isArray(backup.dati.svegliePreferite) ? backup.dati.svegliePreferite : [];
     const daBackupSpese = Array.isArray(backup.dati.spese) ? backup.dati.spese : [];
+    const daBackupAgenda = Array.isArray(backup.dati.agenda) ? backup.dati.agenda : [];
 
     // Allenamenti: aggiunge solo quelli validi e non già presenti
     const allenamenti = leggiJSON(CHIAVE_ALLENAMENTI, []);
@@ -1958,24 +2418,34 @@ campoFileBackup.addEventListener('change', async () => {
       CATEGORIA[s.categoria] && !idSpese.has(s.id)
     );
 
-    if (nuoviAll.length === 0 && nuovePref.length === 0 && nuoveSpese.length === 0) {
+    // Agenda: stesso criterio
+    const agenda = leggiAgenda();
+    const idAgenda = new Set(agenda.map(v => v.id));
+    const nuoveVoci = daBackupAgenda.filter(v =>
+      v && v.id && typeof v.titolo === 'string' && !idAgenda.has(v.id)
+    );
+
+    if (nuoviAll.length === 0 && nuovePref.length === 0 && nuoveSpese.length === 0 && nuoveVoci.length === 0) {
       esitoBackup.textContent = 'Niente di nuovo nel backup.';
       return;
     }
 
     const domanda = 'Importare dal backup del ' + formattaData(backup.esportatoIl) + ': ' +
-      nuoviAll.length + ' allenamenti, ' + nuovePref.length + ' sveglie preferite e ' +
-      nuoveSpese.length + ' spese?';
+      nuoviAll.length + ' allenamenti, ' + nuovePref.length + ' sveglie preferite, ' +
+      nuoveSpese.length + ' spese e ' + nuoveVoci.length + ' voci di agenda?';
     if (!confirm(domanda)) return;
 
     scriviJSON(CHIAVE_ALLENAMENTI, allenamenti.concat(nuoviAll));
     scriviJSON(CHIAVE_PREFERITE, preferite.concat(nuovePref));
     scriviJSON(CHIAVE_SPESE, spese.concat(nuoveSpese));
+    scriviJSON(CHIAVE_AGENDA, agenda.concat(nuoveVoci));
     esitoBackup.textContent = 'Importati ' + nuoviAll.length + ' allenamenti, ' +
-      nuovePref.length + ' preferite e ' + nuoveSpese.length + ' spese.';
+      nuovePref.length + ' preferite, ' + nuoveSpese.length + ' spese e ' +
+      nuoveVoci.length + ' voci di agenda.';
     aggiornaPalestra();
     mostraPreferite();
     mostraSpese();
+    aggiornaAgenda();
   } catch {
     esitoBackup.textContent = 'File non valido: scegli un backup di Routine (.json).';
   }

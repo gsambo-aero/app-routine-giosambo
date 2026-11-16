@@ -178,7 +178,8 @@ main {
 }
 .sottoschede.due { grid-template-columns: 1fr 1fr; }
 .sottoscheda,
-.sottoscheda-spese {
+.sottoscheda-spese,
+.sottoscheda-agenda {
   padding: 9px 2px;
   font-size: 14px;
   font-family: inherit;
@@ -189,7 +190,8 @@ main {
   cursor: pointer;
 }
 .sottoscheda.attiva,
-.sottoscheda-spese.attiva {
+.sottoscheda-spese.attiva,
+.sottoscheda-agenda.attiva {
   color: var(--su-accento);
   background: var(--accento);
   font-weight: 600;
@@ -408,10 +410,16 @@ main {
   gap: 8px;
 }
 .hero-link {
+  padding: 0;
   font-size: 13px;
+  font-family: inherit;
   color: var(--accento);
   white-space: nowrap;
+  background: none;
+  border: none;
+  cursor: pointer;
 }
+.hero-link:active { opacity: 0.6; }
 .hero.cliccabile { cursor: pointer; }
 .hero.cliccabile:active { background: var(--superficie-2); }
 .hero-valore {
@@ -825,6 +833,176 @@ main {
   background: var(--accento-chiaro);
   border-radius: 6px;
   vertical-align: 1px;
+}
+
+
+/* ---------- Agenda ---------- */
+.btn-piu {
+  flex: none;
+  padding: 4px;
+  color: var(--accento);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+.btn-piu:active { opacity: 0.5; }
+
+/* Intestazione di ogni giorno */
+.gruppo-giorno {
+  display: flex;
+  justify-content: space-between;
+  margin: 18px 20px 7px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--accento);
+}
+.gruppo-giorno.scaduto { color: var(--pericolo); }
+.lista-scaduta { border-color: #4a2420; }
+
+/* Riga di un impegno */
+.voce {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 11px 13px;
+  border-bottom: 1px solid var(--bordo);
+  cursor: pointer;
+}
+.voce:last-child { border-bottom: none; }
+.voce:active { background: var(--superficie-2); }
+.voce-ora {
+  flex: none;
+  width: 40px;
+  margin-top: 1px;
+  font-size: 13px;
+  color: var(--accento);
+}
+.voce-cerchio {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+  padding: 0;
+  background: none;
+  border: 1.5px solid var(--bordo-forte);
+  border-radius: 50%;
+  cursor: pointer;
+}
+.voce-cerchio.fatto {
+  background: var(--accento);
+  border-color: var(--accento);
+}
+.voce.scaduta .voce-cerchio { border-color: var(--pericolo); }
+.voce-centro {
+  flex: 1;
+  min-width: 0;
+}
+.voce-titolo {
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.25;
+}
+.voce.fatta .voce-titolo {
+  color: var(--testo-secondario);
+  text-decoration: line-through;
+}
+.voce-sotto {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--testo-secondario);
+}
+.voce.scaduta .voce-sotto { color: var(--pericolo); }
+.voce-azione {
+  flex: none;
+  padding: 4px;
+  margin-top: 1px;
+  color: var(--testo-terziario);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+/* Pannello: giorno e ora affiancati, piu le scorciatoie */
+.campo-doppio {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 10px;
+}
+.scorciatoie {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.btn-chip {
+  padding: 7px 12px;
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--accento);
+  background: var(--superficie-2);
+  border: 1px solid var(--bordo);
+  border-radius: 999px;
+  cursor: pointer;
+}
+.btn-chip:active { opacity: 0.6; }
+
+/* ---------- Oggi: la giornata ---------- */
+.giornata { gap: 8px; }
+.giornata-elenco {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 1px solid var(--bordo);
+}
+.giornata-elenco:empty {
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+.giornata-riga {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  cursor: pointer;
+}
+.giornata-ora {
+  flex: none;
+  width: 46px;
+  font-size: 13px;
+  color: var(--accento);
+}
+.giornata-riga.scaduta .giornata-ora { color: var(--pericolo); }
+.giornata-riga.scaduta .voce-titolo { color: var(--pericolo); }
+
+/* ---------- Oggi: sveglie rapide ---------- */
+.rapide {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.rapida {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 9px 0;
+  border-top: 1px solid var(--bordo);
+  cursor: pointer;
+}
+.rapida:first-child { border-top: none; }
+.rapida:active { opacity: 0.6; }
+.rapida-ora {
+  flex: none;
+  font-size: 22px;
+  font-weight: 500;
+  color: var(--accento);
+}
+.rapida-imposta {
+  flex: none;
+  font-size: 13px;
+  color: var(--accento);
 }
 
 /* ---------- Pannello che si apre dal basso ---------- */
