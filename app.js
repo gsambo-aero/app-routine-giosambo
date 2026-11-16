@@ -145,6 +145,15 @@ function creaStrumenti(voci) {
   return griglia;
 }
 
+// Riepilogo mattutino (vedi la scheda Oggi): qui in cima perche la giornata
+// viene disegnata gia all'avvio, prima che si arrivi alla sezione Oggi.
+const CHIAVE_RIEPILOGO = 'riepilogoOggi';
+const FILE_RIEPILOGO = 'out/oggi.json';
+const PAUSA_RIEPILOGO_MS = 10 * 60 * 1000; // non serve rileggerlo a ogni tocco
+
+let ultimaLetturaRiepilogo = 0;
+let schedaNotizie = 'italia';
+
 // Data di oggi in cima a ogni scheda ("sab 14 nov", in maiuscolo grazie allo stile)
 function mostraDataOggi() {
   const oggi = new Date().toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' });
@@ -1734,10 +1743,29 @@ btnEliminaImpegno.addEventListener('click', () => {
 // Scheda Oggi: la giornata e la sveglia in breve
 // ===================================================
 
+// Testo confrontabile: stesso impegno scritto con maiuscole o spazi diversi
+function normalizzaTitolo(t) {
+  return String(t || '').toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
+// Impegni di oggi da Google Calendar (arrivano col riepilogo mattutino).
+// Quelli gia presenti nell'agenda di Routine (stesso titolo e stessa ora) non si ripetono:
+// succede per ogni impegno salvato con "Salva e avvisami".
+function impegniCalendarioDiOggi(vociRoutine) {
+  const r = riepilogoDiOggi();
+  if (!r || !Array.isArray(r.impegni)) return [];
+  const gia = new Set(vociRoutine.map(v => normalizzaTitolo(v.titolo) + '|' + (v.ora || '')));
+  return r.impegni
+    .filter(e => e && typeof e.titolo === 'string' && e.titolo.trim())
+    .map(e => ({ titolo: e.titolo.trim(), ora: /^\d{2}:\d{2}$/.test(e.ora || '') ? e.ora : null, daCalendario: true }))
+    .filter(e => !gia.has(normalizzaTitolo(e.titolo) + '|' + (e.ora || '')));
+}
+
 function mostraGiornata() {
   const voci = leggiAgenda().filter(v => !v.fatto);
   const oggi = giornoISO(new Date());
-  const diOggi = voci.filter(v => v.data === oggi).sort(ordinaNelGiorno);
+  const diRoutine = voci.filter(v => v.data === oggi);
+  const diOggi = diRoutine.concat(impegniCalendarioDiOggi(diRoutine)).sort(ordinaNelGiorno);
   const scadute = voci.filter(v => v.data && v.data < oggi);
 
   const riassunto = document.getElementById('giornata-riassunto');
@@ -1750,7 +1778,7 @@ function mostraGiornata() {
   }
 
   const parti = [];
-  const appuntamenti = diOggi.filter(v => v.ora).length;
+  const appuntamenti = diOggi.filter(v => v.ora || v.daCalendario).length;
   const daFare = diOggi.length - appuntamenti;
   if (appuntamenti) parti.push(appuntamenti + (appuntamenti === 1 ? ' appuntamento' : ' appuntamenti'));
   if (daFare) parti.push(daFare + (daFare === 1 ? ' cosa da fare' : ' cose da fare'));
@@ -1780,9 +1808,14 @@ function mostraGiornata() {
 
   diOggi.forEach(v => {
     const riga = document.createElement('div');
-    riga.className = 'giornata-riga';
+    riga.className = 'giornata-riga' + (v.daCalendario ? ' calendario' : '');
 
-    if (v.ora) {
+    if (v.daCalendario && !v.ora) {
+      const spazio = document.createElement('span');
+      spazio.className = 'giornata-ora mono';
+      spazio.textContent = 'tutto';
+      riga.append(spazio);
+    } else if (v.ora) {
       const ora = document.createElement('span');
       ora.className = 'giornata-ora mono';
       ora.textContent = v.ora;
@@ -1805,14 +1838,14 @@ function mostraGiornata() {
     titolo.className = 'voce-titolo';
     titolo.textContent = v.titolo;
     centro.append(titolo);
-    if (v.nota) {
+    if (v.nota || v.daCalendario) {
       const sotto = document.createElement('div');
       sotto.className = 'voce-sotto';
-      sotto.textContent = v.nota;
+      sotto.textContent = v.daCalendario ? 'Google Calendar' : v.nota;
       centro.append(sotto);
     }
     riga.append(centro);
-    riga.addEventListener('click', () => apriImpegno(v));
+    if (!v.daCalendario) riga.addEventListener('click', () => apriImpegno(v));
     elenco.append(riga);
   });
 }
@@ -1854,6 +1887,259 @@ document.getElementById('btn-apri-sveglia').addEventListener('click', () => { ve
 document.getElementById('btn-chiudi-sveglia').addEventListener('click', () => { veloSveglia.hidden = true; });
 veloSveglia.addEventListener('click', e => { if (e.target === veloSveglia) veloSveglia.hidden = true; });
 
+// ---------- Riepilogo mattutino ----------
+// Ogni mattina alle 6:40 un'attivita pianificata di Claude scrive out/oggi.json
+// nel repository privato (lo stesso della casella di arrivo): frase del giorno,
+// email da aprire (solo mittente e oggetto), impegni di Google Calendar, notizie.
+
+// (le costanti del riepilogo stanno in cima al file: la giornata le usa gia all'avvio)
+
+// Il riepilogo vale solo per il giorno per cui e stato scritto
+function riepilogoDiOggi() {
+  const r = leggiJSON(CHIAVE_RIEPILOGO, null);
+  return r && r.perGiorno === giornoISO(new Date()) ? r : null;
+}
+
+async function leggiRiepilogo() {
+  if (!configurazioneGitHub()) return;
+  if (Date.now() - ultimaLetturaRiepilogo < PAUSA_RIEPILOGO_MS && riepilogoDiOggi()) return;
+  try {
+    const dati = await chiamaGitHub('/contents/' + FILE_RIEPILOGO, { cache: 'no-store' });
+    ultimaLetturaRiepilogo = Date.now();
+    if (!dati || !dati.content) return;
+    const r = JSON.parse(daBase64(dati.content));
+    if (!r || typeof r !== 'object') return;
+    scriviJSON(CHIAVE_RIEPILOGO, r);
+    mostraRiepilogoOggi();
+    mostraGiornata();
+  } catch {
+    // Senza rete o senza file resta quello che c'era: il resto di Oggi funziona lo stesso
+  }
+}
+
+// Una riga cliccabile che apre un link fuori dall'app (Gmail, articolo)
+function creaRigaLink(titoloTesto, sottoTesto, link, urgente) {
+  const riga = document.createElement(link ? 'a' : 'div');
+  riga.className = 'link-riga';
+  if (link) {
+    riga.href = link;
+    riga.target = '_blank';
+    riga.rel = 'noopener';
+  }
+  const segno = document.createElement('span');
+  segno.className = 'link-segno' + (urgente ? ' urgente' : '');
+  const centro = document.createElement('div');
+  centro.className = 'voce-centro';
+  const titolo = document.createElement('div');
+  titolo.className = 'voce-titolo';
+  titolo.textContent = titoloTesto;
+  centro.append(titolo);
+  if (sottoTesto) {
+    const sotto = document.createElement('div');
+    sotto.className = 'voce-sotto';
+    sotto.textContent = sottoTesto;
+    centro.append(sotto);
+  }
+  riga.append(segno, centro);
+  if (link) {
+    const freccia = document.createElement('span');
+    freccia.className = 'link-freccia';
+    freccia.textContent = '↗';
+    riga.append(freccia);
+  }
+  return riga;
+}
+
+function testoValido(t) {
+  return typeof t === 'string' && t.trim() !== '';
+}
+
+function mostraRiepilogoOggi() {
+  const r = riepilogoDiOggi();
+
+  // Frase della giornata
+  const card = document.getElementById('riepilogo-card');
+  card.hidden = !(r && testoValido(r.frase));
+  if (!card.hidden) {
+    document.getElementById('riepilogo-frase').textContent = r.frase;
+    document.getElementById('riepilogo-ora').textContent = r.generato ? formattaOra(r.generato) : '';
+  }
+
+  // Email da aprire: urgenti in cima
+  const email = r && Array.isArray(r.email) ? r.email.filter(e => e && testoValido(e.oggetto)) : [];
+  email.sort((a, b) => (b.urgente ? 1 : 0) - (a.urgente ? 1 : 0));
+  const cardEmail = document.getElementById('email-card');
+  cardEmail.hidden = email.length === 0;
+  const elencoEmail = document.getElementById('email-elenco');
+  elencoEmail.innerHTML = '';
+  email.forEach(e => {
+    const link = /^https:\/\/mail\.google\.com\//.test(e.link || '') ? e.link : null;
+    elencoEmail.append(creaRigaLink(e.oggetto, e.da || '', link, !!e.urgente));
+  });
+  document.getElementById('email-numero').textContent = email.length || '';
+
+  mostraNotizie();
+  mostraCitazione();
+}
+
+function mostraNotizie() {
+  const r = riepilogoDiOggi();
+  const notizie = r && r.notizie && typeof r.notizie === 'object' ? r.notizie : {};
+  const perScheda = nome => (Array.isArray(notizie[nome]) ? notizie[nome] : []).filter(n => n && testoValido(n.titolo));
+  const schede = ['italia', 'settore', 'locali'];
+  const card = document.getElementById('notizie-card');
+  card.hidden = schede.every(nome => perScheda(nome).length === 0);
+  if (card.hidden) return;
+
+  // Se la scheda scelta e vuota, passa alla prima che ha qualcosa
+  if (perScheda(schedaNotizie).length === 0) schedaNotizie = schede.find(nome => perScheda(nome).length > 0);
+  document.querySelectorAll('.sottoscheda-notizie').forEach(b => {
+    b.classList.toggle('attiva', b.dataset.notizie === schedaNotizie);
+    b.disabled = perScheda(b.dataset.notizie).length === 0; // scheda senza notizie fresche
+  });
+
+  const elenco = document.getElementById('notizie-elenco');
+  elenco.innerHTML = '';
+  perScheda(schedaNotizie).forEach(n => {
+    const link = /^https?:\/\//.test(n.link || '') ? n.link : null;
+    const sotto = [n.fonte, n.riassunto].filter(testoValido).join(' · ');
+    elenco.append(creaRigaLink(n.titolo, sotto, link, false));
+  });
+}
+
+document.querySelectorAll('.sottoscheda-notizie').forEach(b => {
+  b.addEventListener('click', () => { schedaNotizie = b.dataset.notizie; mostraNotizie(); });
+});
+
+
+// ---------- Frase del giorno ----------
+// Di solito la sceglie Claude nel riepilogo; se il riepilogo non c'e,
+// Routine ne prende una da questo elenco, diversa ogni giorno.
+const CITAZIONI = [
+  ['Non è perché le cose sono difficili che non osiamo; è perché non osiamo che sono difficili.', 'Seneca'],
+  ['Nessun vento è favorevole per chi non sa dove andare.', 'Seneca'],
+  ['Mentre si rimanda, la vita passa.', 'Seneca'],
+  ['Non è che abbiamo poco tempo: è che ne perdiamo molto.', 'Seneca'],
+  ['Non perdere altro tempo a discutere di come debba essere un uomo buono. Sii uno.', 'Marco Aurelio'],
+  ['Ciò che ostacola l’azione fa avanzare l’azione. Ciò che sta sulla via diventa la via.', 'Marco Aurelio'],
+  ['Non sono le cose a turbare gli uomini, ma i giudizi che essi danno delle cose.', 'Epitteto'],
+  ['Nessuno è libero se non è padrone di sé stesso.', 'Epitteto'],
+  ['Chi poco pensa, molto erra.', 'Leonardo da Vinci'],
+  ['Come il ferro s’arrugginisce senza esercizio, così l’ingegno senza esercizio si guasta.', 'Leonardo da Vinci'],
+  ['Il modo più efficace per farlo è farlo.', 'Amelia Earhart'],
+  ['Il primo principio è che non devi ingannare te stesso, e tu sei la persona più facile da ingannare.', 'Richard Feynman'],
+  ['La vita è come andare in bicicletta: per restare in equilibrio devi continuare a muoverti.', 'Albert Einstein'],
+  ['Non ho talenti speciali. Sono solo appassionatamente curioso.', 'Albert Einstein'],
+  ['Con la forza d’animo vinciamo.', 'Ernest Shackleton'],
+  ['Cogli l’attimo, confidando il meno possibile nel domani.', 'Orazio'],
+  ['Possono, perché credono di potere.', 'Virgilio'],
+  ['Un viaggio di mille miglia comincia con un passo.', 'Lao Tzu'],
+  ['Fatti non foste a viver come bruti, ma per seguir virtute e canoscenza.', 'Dante Alighieri'],
+  ['Nella vita non c’è nulla da temere, solo da capire.', 'Marie Curie'],
+  ['Se ho visto più lontano, è perché stavo sulle spalle di giganti.', 'Isaac Newton'],
+  ['È un piccolo passo per un uomo, ma un balzo gigantesco per l’umanità.', 'Neil Armstrong'],
+  ['Finché c’è vita, c’è speranza.', 'Cicerone'],
+  ['Il corpo faccia quello che vuole. Io non sono il corpo: io sono la mente.', 'Rita Levi-Montalcini'],
+  ['Ancora imparo.', 'Michelangelo Buonarroti']
+];
+
+function mostraCitazione() {
+  const r = riepilogoDiOggi();
+  let testo, autore;
+  if (r && r.motivazione && testoValido(r.motivazione.testo)) {
+    testo = r.motivazione.testo;
+    autore = r.motivazione.autore || '';
+  } else {
+    const oggi = new Date();
+    const giornoAnno = Math.floor((oggi - new Date(oggi.getFullYear(), 0, 0)) / 86400000);
+    [testo, autore] = CITAZIONI[giornoAnno % CITAZIONI.length];
+  }
+  document.getElementById('citazione-testo').textContent = '«' + testo.replace(/^[«"]+|[»"]+$/g, '') + '»';
+  document.getElementById('citazione-autore').textContent = autore;
+}
+
+
+// ---------- Meteo dal vivo (Open-Meteo, nessuna chiave) ----------
+const CHIAVE_METEO = 'meteoOggi';
+const METEO_LUOGO = { nome: 'Mogliano Veneto', lat: 45.561, lon: 12.236 };
+const PAUSA_METEO_MS = 20 * 60 * 1000;
+const DIREZIONI_VENTO = ['N', 'NE', 'E', 'SE', 'S', 'SO', 'O', 'NO'];
+
+let meteoInCorso = false;
+
+async function aggiornaMeteo(forza) {
+  const salvato = leggiJSON(CHIAVE_METEO, null);
+  if (meteoInCorso) return;
+  if (!forza && salvato && Date.now() - salvato.quando < PAUSA_METEO_MS) return;
+  meteoInCorso = true;
+  try {
+    const url = 'https://api.open-meteo.com/v1/forecast?latitude=' + METEO_LUOGO.lat + '&longitude=' + METEO_LUOGO.lon +
+      '&current=temperature_2m,wind_speed_10m,wind_direction_10m,pressure_msl' +
+      '&hourly=pressure_msl&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max' +
+      '&timezone=Europe%2FRome&forecast_days=1&past_days=1';
+    const risposta = await fetch(url);
+    if (!risposta.ok) throw new Error();
+    const d = await risposta.json();
+
+    // Tendenza della pressione: confronto con 3 ore prima
+    let tendenza = null;
+    const ore = d.hourly && d.hourly.time;
+    if (ore && d.current) {
+      const adesso = d.current.time.slice(0, 13);
+      const i = ore.findIndex(t => t.slice(0, 13) === adesso);
+      if (i >= 3) tendenza = d.hourly.pressure_msl[i] - d.hourly.pressure_msl[i - 3];
+    }
+    const ultimo = (d.daily.time || []).length - 1;
+    scriviJSON(CHIAVE_METEO, {
+      quando: Date.now(),
+      giorno: giornoISO(new Date()),
+      temp: d.current.temperature_2m,
+      vento: d.current.wind_speed_10m,
+      direzione: d.current.wind_direction_10m,
+      pressione: d.current.pressure_msl,
+      tendenza,
+      min: d.daily.temperature_2m_min[ultimo],
+      max: d.daily.temperature_2m_max[ultimo],
+      pioggia: d.daily.precipitation_probability_max[ultimo]
+    });
+    mostraMeteo();
+  } catch {
+    // Senza rete resta l'ultimo dato salvato, con la sua ora
+  } finally {
+    meteoInCorso = false;
+  }
+}
+
+function mostraMeteo() {
+  const m = leggiJSON(CHIAVE_METEO, null);
+  const card = document.getElementById('meteo-card');
+  card.hidden = !m;
+  if (!m) return;
+
+  const tondo = v => (typeof v === 'number' ? Math.round(v) : null);
+  const direzione = typeof m.direzione === 'number' ? DIREZIONI_VENTO[Math.round(m.direzione / 45) % 8] : '';
+  let tendenza = 'stabile';
+  if (typeof m.tendenza === 'number') {
+    if (m.tendenza >= 1) tendenza = 'in salita';
+    else if (m.tendenza <= -1) tendenza = 'in calo';
+  }
+  const odierno = m.giorno === giornoISO(new Date());
+
+  const contenitore = document.getElementById('meteo-strumenti');
+  contenitore.innerHTML = '';
+  const griglia = creaStrumenti([
+    ['Temp', tondo(m.temp) !== null ? tondo(m.temp) + '°' : 'n/d', odierno && tondo(m.min) !== null ? tondo(m.min) + ' / ' + tondo(m.max) + '°' : ''],
+    ['Pioggia', odierno && tondo(m.pioggia) !== null ? tondo(m.pioggia) + '%' : 'n/d', 'oggi'],
+    ['Vento', tondo(m.vento) !== null ? tondo(m.vento) + ' km/h' : 'n/d', direzione],
+    ['Press.', tondo(m.pressione) !== null ? String(tondo(m.pressione)) : 'n/d', 'hPa ' + tendenza]
+  ]);
+  griglia.classList.add('quattro');
+  contenitore.append(griglia);
+
+  const minuti = Math.round((Date.now() - m.quando) / 60000);
+  document.getElementById('meteo-ora').textContent = minuti < 2 ? 'adesso' : formattaOra(new Date(m.quando).toISOString());
+}
+
 // I pulsanti "vai a una scheda" dentro i riquadri di Oggi
 document.querySelectorAll('[data-vai]').forEach(b => {
   b.addEventListener('click', e => { e.stopPropagation(); mostraVista(b.dataset.vai); });
@@ -1862,6 +2148,8 @@ document.querySelectorAll('[data-vai]').forEach(b => {
 mostraSottoschedaAgenda('dafare');
 mostraGiornata();
 mostraSveglieRapide();
+mostraRiepilogoOggi();
+mostraMeteo();
 
 
 // ===================================================
@@ -2763,8 +3051,15 @@ document.getElementById('btn-leggi-casella').addEventListener('click', () => leg
 
 // All'apertura e ogni volta che si torna sull'app
 leggiCasella(false);
+leggiRiepilogo();
+aggiornaMeteo();
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) leggiCasella(false);
+  if (document.hidden) return;
+  leggiCasella(false);
+  leggiRiepilogo();
+  aggiornaMeteo();
+  mostraGiornata();
+  mostraCitazione();
 });
 
 
