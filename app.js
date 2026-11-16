@@ -1707,10 +1707,16 @@ function mandaASistema(comando, serveOra) {
 
   // Senza orario, un promemoria a inizio giornata e inutile: si usano le 9
   const ora = voce.ora || '09:00';
+  // Si manda "titolo|GG/MM/AAAA HH:MM": due sole parti, cosi nel Comando Rapido
+  // bastano il primo e l'ultimo elemento, senza indici da scrivere a mano.
+  // La data va in formato italiano perche la legge l'iPhone, non il codice.
+  const [anno, mese, giorno] = voce.data.split('-');
+  const quando = giorno + '/' + mese + '/' + anno + ' ' + ora;
+
   scriviJSON(CHIAVE_AGENDA, leggiAgenda().map(v => v.id !== voce.id ? v : { ...v, avvisato: true }));
   chiudiImpegno();
   aggiornaAgenda();
-  apriComando(comando, voce.titolo + '|' + voce.data + '|' + ora);
+  apriComando(comando, voce.titolo + '|' + quando);
 }
 
 document.getElementById('btn-impegno-promemoria')
