@@ -231,6 +231,10 @@ mostraVista(localStorage.getItem('ultimaVista') || 'oggi');
 
 // Un comando rapido per ogni tipo di ripetizione.
 // I nomi devono coincidere esattamente con quelli in Comandi Rapidi.
+// Comandi rapidi che portano un impegno nelle app di sistema, per avere le notifiche
+const COMANDO_PROMEMORIA = 'Routine Promemoria';
+const COMANDO_CALENDARIO = 'Routine Calendario';
+
 const COMANDI_SVEGLIA = {
   una: 'Routine Sveglia',
   feriali: 'Routine Sveglia Feriali',
@@ -1463,6 +1467,14 @@ function creaVoceAgenda(v, opzioni) {
     segno.textContent = 'DA RIVEDERE';
     titolo.append(segno);
   }
+  if (v.avvisato && !v.fatto) {
+    const campana = document.createElementNS(SVG_NS, 'svg');
+    campana.setAttribute('class', 'segno-avviso');
+    const uso = document.createElementNS(SVG_NS, 'use');
+    uso.setAttribute('href', '#i-campana');
+    campana.append(uso);
+    titolo.append(campana);
+  }
   centro.append(titolo);
 
   const dettagli = [];
@@ -1629,45 +1641,82 @@ document.querySelectorAll('[data-giorno]').forEach(b => {
   });
 });
 
-document.getElementById('form-impegno').addEventListener('submit', e => {
-  e.preventDefault();
+// Salva quello che c'e nel pannello e restituisce la voce salvata, oppure null se manca qualcosa
+function salvaImpegnoDalPannello() {
   const titolo = campoTitolo.value.trim();
   if (!titolo) {
     esitoImpegno.textContent = 'Scrivi che cosa devi fare.';
-    return;
+    return null;
   }
   if (campoOraImpegno.value && !campoData.value) {
     esitoImpegno.textContent = 'Con un orario serve anche il giorno.';
-    return;
+    return null;
   }
 
+  const comuni = {
+    titolo,
+    data: campoData.value || null,
+    ora: campoOraImpegno.value || null,
+    nota: campoNotaImpegno.value.trim(),
+    daRivedere: false // controllato a mano
+  };
+
   const voci = leggiAgenda();
+  let salvata;
   if (impegnoInModifica) {
-    scriviJSON(CHIAVE_AGENDA, voci.map(v => v.id !== impegnoInModifica.id ? v : {
-      ...v,
-      titolo,
-      data: campoData.value || null,
-      ora: campoOraImpegno.value || null,
-      nota: campoNotaImpegno.value.trim(),
-      daRivedere: false // controllato a mano
-    }));
+    salvata = { ...impegnoInModifica, ...comuni };
+    scriviJSON(CHIAVE_AGENDA, voci.map(v => v.id !== salvata.id ? v : salvata));
   } else {
-    voci.push({
+    salvata = {
       id: Date.now().toString(),
-      titolo,
-      data: campoData.value || null,
-      ora: campoOraImpegno.value || null,
-      nota: campoNotaImpegno.value.trim(),
+      ...comuni,
       fatto: false,
       fattoIl: null,
       fonte: 'mano',
-      daRivedere: false
-    });
-    scriviJSON(CHIAVE_AGENDA, voci);
+      avvisato: false
+    };
+    scriviJSON(CHIAVE_AGENDA, voci.concat(salvata));
+    impegnoInModifica = salvata; // un secondo tocco aggiorna, non duplica
   }
+  return salvata;
+}
+
+document.getElementById('form-impegno').addEventListener('submit', e => {
+  e.preventDefault();
+  if (!salvaImpegnoDalPannello()) return;
   chiudiImpegno();
   aggiornaAgenda();
 });
+
+// Routine non puo mandare notifiche: l'avviso lo crea l'app Promemoria o Calendario,
+// tramite un Comando Rapido che riceve "titolo|AAAA-MM-GG|HH:MM"
+function mandaASistema(comando, serveOra) {
+  // I controlli vengono prima del salvataggio, altrimenti un tentativo
+  // fallito lascerebbe comunque una voce nell'agenda
+  if (!campoData.value) {
+    esitoImpegno.textContent = 'Serve almeno il giorno per creare un avviso.';
+    return;
+  }
+  if (serveOra && !campoOraImpegno.value) {
+    esitoImpegno.textContent = 'Per il calendario serve anche un orario.';
+    return;
+  }
+
+  const voce = salvaImpegnoDalPannello();
+  if (!voce) return;
+
+  // Senza orario, un promemoria a inizio giornata e inutile: si usano le 9
+  const ora = voce.ora || '09:00';
+  scriviJSON(CHIAVE_AGENDA, leggiAgenda().map(v => v.id !== voce.id ? v : { ...v, avvisato: true }));
+  chiudiImpegno();
+  aggiornaAgenda();
+  apriComando(comando, voce.titolo + '|' + voce.data + '|' + ora);
+}
+
+document.getElementById('btn-impegno-promemoria')
+  .addEventListener('click', () => mandaASistema(COMANDO_PROMEMORIA, false));
+document.getElementById('btn-impegno-calendario')
+  .addEventListener('click', () => mandaASistema(COMANDO_CALENDARIO, true));
 
 btnEliminaImpegno.addEventListener('click', () => {
   if (!impegnoInModifica) return;
