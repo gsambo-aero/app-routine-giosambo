@@ -1355,6 +1355,514 @@ mostraSonno();
 
 
 // ===================================================
+// Spese
+// ===================================================
+
+const CHIAVE_SPESE = 'spese';
+const MESI_NEL_GRAFICO = 12;
+const CATEGORIE_IN_EVIDENZA = 6; // le altre si aprono con un tocco
+
+// L'ordine conta: le prime quattro sono la "vita sociale", che ha un totale suo.
+// Elenco in un punto solo: da qui si potra renderlo modificabile dalle Impostazioni.
+const CATEGORIE_SPESA = [
+  { id: 'bar',         breve: 'Bar',    nome: 'Bar e caffe',       icona: 'i-caffe',      sociale: true },
+  { id: 'drink',       breve: 'Drink',  nome: 'Aperitivi e drink', icona: 'i-bicchiere',  sociale: true },
+  { id: 'pasti',       breve: 'Pasti',  nome: 'Pasti fuori',       icona: 'i-piatto',     sociale: true },
+  { id: 'feste',       breve: 'Feste',  nome: 'Feste e serate',    icona: 'i-coriandoli', sociale: true },
+  { id: 'trasporti',   breve: 'Trasp.', nome: 'Trasporti',         icona: 'i-auto' },
+  { id: 'pesca',       breve: 'Pesca',  nome: 'Pesca',             icona: 'i-pesce' },
+  { id: 'sport',       breve: 'Sport',  nome: 'Sport e salute',    icona: 'i-manubrio' },
+  { id: 'shopping',    breve: 'Shop',   nome: 'Shopping',          icona: 'i-borsa' },
+  { id: 'abbonamenti', breve: 'Abbon.', nome: 'Abbonamenti',       icona: 'i-ricorrente' },
+  { id: 'altro',       breve: 'Altro',  nome: 'Altro',             icona: 'i-punti' }
+];
+const CATEGORIA = {};
+CATEGORIE_SPESA.forEach(c => { CATEGORIA[c.id] = c; });
+
+// Gli importi sono salvati in centesimi: numeri interi, nessun errore di arrotondamento
+function euroTesto(centesimi) {
+  return (centesimi / 100).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// Scrive un importo con il simbolo dell'euro piu piccolo
+function scriviEuro(el, centesimi) {
+  el.textContent = euroTesto(centesimi);
+  const u = document.createElement('span');
+  u.className = 'unita';
+  u.textContent = '€';
+  el.append(u);
+}
+
+function leggiSpese() {
+  return leggiJSON(CHIAVE_SPESE, []).filter(s => s && s.id && typeof s.importoCent === 'number' && s.quando);
+}
+
+function primoDelMese(d) {
+  return new Date(d.getFullYear(), d.getMonth(), 1);
+}
+
+function nomeMese(d) {
+  return d.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' });
+}
+
+function stessoMese(a, b) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth();
+}
+
+function speseDelMese(spese, mese) {
+  return spese.filter(s => stessoMese(new Date(s.quando), mese));
+}
+
+function sommaCent(spese) {
+  return spese.reduce((t, s) => t + s.importoCent, 0);
+}
+
+
+// ---------- Inserimento ----------
+
+const elImporto = document.getElementById('spesa-importo');
+const elQuando = document.getElementById('spesa-quando');
+const campoNotaSpesa = document.getElementById('campo-spesa-nota');
+const elNotaSpesa = document.getElementById('spesa-nota');
+const elConferma = document.getElementById('spesa-conferma');
+const elConfermaTesto = document.getElementById('spesa-conferma-testo');
+
+let cifre = '';          // centesimi digitati, come testo
+let ultimaSalvata = null; // per il pulsante Annulla
+let timerConferma = null;
+
+function mostraImporto() {
+  const centesimi = cifre === '' ? 0 : parseInt(cifre, 10);
+  scriviEuro(elImporto, centesimi);
+  elImporto.classList.toggle('vuoto-valore', cifre === '');
+  elQuando.textContent = 'oggi, ' + new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+}
+
+function premiTasto(valore) {
+  if (valore === 'canc') {
+    cifre = cifre.slice(0, -1);
+  } else {
+    const prossime = (cifre + valore).replace(/^0+/, '');
+    if (prossime.length > 7) return; // massimo 99.999,99
+    cifre = prossime;
+  }
+  mostraImporto();
+}
+
+// Tastierino: 1-9, poi 00, 0 e cancella
+const elTastierino = document.getElementById('tastierino');
+['1','2','3','4','5','6','7','8','9','00','0','canc'].forEach(v => {
+  const t = document.createElement('button');
+  t.type = 'button';
+  t.className = 'tasto' + (v === '00' || v === 'canc' ? ' piccolo' : '');
+  if (v === 'canc') {
+    t.innerHTML = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" ' +
+      'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-4px">' +
+      '<path d="M9 5h11a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9L2 12z"/><path d="M13 9.5l5 5M18 9.5l-5 5"/></svg>';
+    t.setAttribute('aria-label', 'Cancella una cifra');
+  } else {
+    t.textContent = v;
+  }
+  t.addEventListener('click', () => premiTasto(v));
+  elTastierino.append(t);
+});
+
+// Griglia delle categorie: la stessa serve anche nel pannello di modifica
+function creaGrigliaCategorie(contenitore, alTocco) {
+  contenitore.innerHTML = '';
+  CATEGORIE_SPESA.forEach(c => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'categoria' + (c.sociale ? ' sociale' : '');
+    b.dataset.categoria = c.id;
+    b.innerHTML = '<svg><use href="#' + c.icona + '"/></svg>';
+    const nome = document.createElement('span');
+    nome.textContent = c.breve;
+    b.append(nome);
+    b.addEventListener('click', () => alTocco(c.id, contenitore));
+    contenitore.append(b);
+  });
+}
+
+document.getElementById('btn-spesa-nota').addEventListener('click', () => {
+  campoNotaSpesa.hidden = !campoNotaSpesa.hidden;
+  if (!campoNotaSpesa.hidden) elNotaSpesa.focus();
+});
+
+function salvaSpesa(categoriaId) {
+  if (cifre === '') {
+    mostraConferma("Scrivi prima l'importo.", false);
+    return;
+  }
+  const spesa = {
+    id: Date.now().toString(),
+    importoCent: parseInt(cifre, 10),
+    categoria: categoriaId,
+    nota: elNotaSpesa.value.trim(),
+    quando: new Date().toISOString(),
+    fonte: 'mano',      // 'voce' quando arrivera dal comando vocale
+    daRivedere: false   // vero se la categoria l'ha indovinata Claude
+  };
+  scriviJSON(CHIAVE_SPESE, leggiSpese().concat(spesa));
+  ultimaSalvata = spesa.id;
+
+  cifre = '';
+  elNotaSpesa.value = '';
+  campoNotaSpesa.hidden = true;
+  mostraImporto();
+  meseVisto = primoDelMese(new Date()); // il mese della spesa appena inserita
+  mostraSpese();
+  mostraConferma('Salvata: ' + euroTesto(spesa.importoCent) + ' € · ' + CATEGORIA[categoriaId].nome, true);
+}
+
+function mostraConferma(testo, conAnnulla) {
+  clearTimeout(timerConferma);
+  elConfermaTesto.textContent = testo;
+  document.getElementById('btn-spesa-annulla').hidden = !conAnnulla;
+  elConferma.hidden = false;
+  timerConferma = setTimeout(() => { elConferma.hidden = true; ultimaSalvata = null; }, 6000);
+}
+
+document.getElementById('btn-spesa-annulla').addEventListener('click', () => {
+  if (!ultimaSalvata) return;
+  scriviJSON(CHIAVE_SPESE, leggiSpese().filter(s => s.id !== ultimaSalvata));
+  ultimaSalvata = null;
+  elConferma.hidden = true;
+  mostraSpese();
+});
+
+creaGrigliaCategorie(document.getElementById('categorie-spesa'), salvaSpesa);
+mostraImporto();
+
+
+// ---------- Mese corrente ----------
+
+let meseVisto = primoDelMese(new Date());
+let tutteLeCategorie = false;
+
+function mostraRiepilogoMese(spese) {
+  const delMese = speseDelMese(spese, meseVisto);
+  const totale = sommaCent(delMese);
+  const oggi = new Date();
+  const corrente = stessoMese(meseVisto, oggi);
+
+  document.getElementById('spese-mese-nome').textContent = nomeMese(meseVisto);
+  document.getElementById('btn-mese-succ').disabled = corrente;
+  scriviEuro(document.getElementById('spese-totale'), totale);
+
+  // Confronto con il mese prima: allo stesso giorno, altrimenti a meta mese
+  // il confronto con un mese intero direbbe sempre che stai risparmiando
+  const precedente = new Date(meseVisto.getFullYear(), meseVisto.getMonth() - 1, 1);
+  const giornoLimite = corrente ? oggi.getDate() : 32;
+  const delPrec = speseDelMese(spese, precedente).filter(s => new Date(s.quando).getDate() <= giornoLimite);
+  const elConfronto = document.getElementById('spese-confronto');
+  elConfronto.classList.remove('su', 'giu');
+  if (delPrec.length === 0) {
+    elConfronto.textContent = 'Nessuna spesa registrata a ' + precedente.toLocaleDateString('it-IT', { month: 'long' }) + '.';
+  } else {
+    const differenza = totale - sommaCent(delPrec);
+    const quando = corrente ? ' allo stesso giorno' : '';
+    if (differenza === 0) {
+      elConfronto.textContent = 'Come ' + precedente.toLocaleDateString('it-IT', { month: 'long' }) + quando + '.';
+    } else {
+      elConfronto.classList.add(differenza > 0 ? 'su' : 'giu');
+      elConfronto.textContent = (differenza > 0 ? '▲ ' : '▼ ') + euroTesto(Math.abs(differenza)) +
+        ' € rispetto a ' + precedente.toLocaleDateString('it-IT', { month: 'long' }) + quando;
+    }
+  }
+
+  // Media al giorno: sui giorni trascorsi se il mese e quello in corso
+  const giorni = corrente ? oggi.getDate() : new Date(meseVisto.getFullYear(), meseVisto.getMonth() + 1, 0).getDate();
+  scriviEuro(document.getElementById('spese-media'), Math.round(totale / giorni));
+  scriviEuro(document.getElementById('spese-sociale'),
+    sommaCent(delMese.filter(s => CATEGORIA[s.categoria] && CATEGORIA[s.categoria].sociale)));
+
+  mostraCategorieMese(delMese, totale);
+  mostraElencoSpese(delMese);
+}
+
+function mostraCategorieMese(delMese, totale) {
+  const box = document.getElementById('spese-categorie');
+  box.innerHTML = '';
+  if (delMese.length === 0) {
+    box.classList.add('vuoto');
+    box.textContent = 'Nessuna spesa in questo mese.';
+    return;
+  }
+  box.classList.remove('vuoto');
+
+  const perCategoria = CATEGORIE_SPESA
+    .map(c => ({ cat: c, totale: sommaCent(delMese.filter(s => s.categoria === c.id)) }))
+    .filter(v => v.totale > 0)
+    .sort((a, b) => b.totale - a.totale);
+
+  const massimo = perCategoria[0].totale;
+  const visibili = tutteLeCategorie ? perCategoria : perCategoria.slice(0, CATEGORIE_IN_EVIDENZA);
+
+  visibili.forEach(v => {
+    const riga = document.createElement('div');
+    riga.className = 'barra-cat' + (v.cat.sociale ? ' sociale' : '');
+
+    const nome = document.createElement('span');
+    nome.className = 'barra-cat-nome';
+    nome.textContent = v.cat.nome;
+
+    const traccia = document.createElement('div');
+    traccia.className = 'barra-cat-traccia';
+    const riempimento = document.createElement('div');
+    riempimento.className = 'barra-cat-riempimento';
+    riempimento.style.width = Math.round((v.totale / massimo) * 100) + '%';
+    traccia.append(riempimento);
+
+    const valore = document.createElement('span');
+    valore.className = 'barra-cat-valore';
+    valore.textContent = euroTesto(v.totale);
+
+    riga.append(nome, traccia, valore);
+    box.append(riga);
+  });
+
+  const nascoste = perCategoria.length - visibili.length;
+  if (nascoste > 0 || tutteLeCategorie) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'altre-cat';
+    b.textContent = tutteLeCategorie
+      ? 'Mostra solo le principali'
+      : (nascoste === 1 ? 'un\'altra categoria' : 'altre ' + nascoste + ' categorie');
+    b.addEventListener('click', () => { tutteLeCategorie = !tutteLeCategorie; mostraSpese(); });
+    box.append(b);
+  }
+}
+
+function mostraElencoSpese(delMese) {
+  const elenco = document.getElementById('spese-elenco');
+  elenco.innerHTML = '';
+  document.getElementById('spese-elenco-vuoto').hidden = delMese.length > 0;
+
+  // Prima quelle da controllare, poi le piu recenti
+  const ordinate = delMese.slice().sort((a, b) => {
+    if (!!b.daRivedere !== !!a.daRivedere) return b.daRivedere ? 1 : -1;
+    return new Date(b.quando) - new Date(a.quando);
+  });
+
+  ordinate.forEach(s => {
+    const cat = CATEGORIA[s.categoria];
+    const quando = new Date(s.quando);
+    const oggi = new Date();
+    const giorno = quando.toDateString() === oggi.toDateString()
+      ? 'oggi'
+      : quando.toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' });
+    const ora = quando.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+
+    const { riga, sinistra } = creaRiga(cat ? cat.nome : 'Altro', giorno + ' · ' + ora + (s.nota ? ' · ' + s.nota : ''));
+    if (s.daRivedere) {
+      const segno = document.createElement('span');
+      segno.className = 'da-rivedere';
+      segno.textContent = 'DA RIVEDERE';
+      sinistra.querySelector('.riga-titolo').append(segno);
+    }
+    const destra = document.createElement('span');
+    destra.className = 'riga-valore';
+    destra.textContent = euroTesto(s.importoCent) + ' €';
+    riga.append(destra);
+    riga.addEventListener('click', () => apriModificaSpesa(s));
+    elenco.append(riga);
+  });
+}
+
+document.getElementById('btn-mese-prec').addEventListener('click', () => {
+  meseVisto = new Date(meseVisto.getFullYear(), meseVisto.getMonth() - 1, 1);
+  mostraSpese();
+});
+document.getElementById('btn-mese-succ').addEventListener('click', () => {
+  if (stessoMese(meseVisto, new Date())) return;
+  meseVisto = new Date(meseVisto.getFullYear(), meseVisto.getMonth() + 1, 1);
+  mostraSpese();
+});
+
+
+// ---------- Resoconto di tutti i mesi ----------
+
+function mesiConSpese(spese) {
+  const mappa = new Map();
+  spese.forEach(s => {
+    const d = primoDelMese(new Date(s.quando));
+    const chiave = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+    if (!mappa.has(chiave)) mappa.set(chiave, { mese: d, totale: 0, numero: 0 });
+    const voce = mappa.get(chiave);
+    voce.totale += s.importoCent;
+    voce.numero += 1;
+  });
+  return [...mappa.values()].sort((a, b) => b.mese - a.mese);
+}
+
+function mostraStoricoSpese(spese) {
+  const mesi = mesiConSpese(spese);
+  const totale = sommaCent(spese);
+
+  scriviEuro(document.getElementById('spese-totale-tutto'), totale);
+  scriviEuro(document.getElementById('spese-media-mese'), mesi.length ? Math.round(totale / mesi.length) : 0);
+  document.getElementById('spese-mesi-num').textContent = mesi.length;
+
+  const piuAlto = mesi.slice().sort((a, b) => b.totale - a.totale)[0];
+  const elAlto = document.getElementById('spese-mese-alto');
+  const elAltoNome = document.getElementById('spese-mese-alto-nome');
+  if (piuAlto) {
+    scriviEuro(elAlto, piuAlto.totale);
+    elAltoNome.textContent = piuAlto.mese.toLocaleDateString('it-IT', { month: 'long' });
+  } else {
+    elAlto.textContent = 'n/d';
+    elAltoNome.textContent = '';
+  }
+
+  // Grafico: ultimi 12 mesi, anche quelli senza spese, cosi i buchi si vedono
+  const contenitore = document.getElementById('grafico-spese-mesi');
+  const info = document.getElementById('info-spese-mesi');
+  if (mesi.length === 0) {
+    contenitore.innerHTML = '';
+    info.textContent = '';
+    document.getElementById('spese-mesi').innerHTML = '';
+    document.getElementById('spese-mesi-vuoto').hidden = false;
+    return;
+  }
+  document.getElementById('spese-mesi-vuoto').hidden = true;
+
+  const oggi = primoDelMese(new Date());
+  const punti = [];
+  for (let i = MESI_NEL_GRAFICO - 1; i >= 0; i--) {
+    const m = new Date(oggi.getFullYear(), oggi.getMonth() - i, 1);
+    const voce = mesi.find(v => stessoMese(v.mese, m));
+    punti.push({
+      etichetta: m.toLocaleDateString('it-IT', { month: 'short' }).replace('.', ''),
+      valore: voce ? voce.totale / 100 : 0,
+      dettaglio: nomeMese(m) + ': ' + (voce ? euroTesto(voce.totale) + ' € in ' + voce.numero + ' spese' : 'niente')
+    });
+  }
+  disegnaColonne(contenitore, info, punti, v => Math.round(v), 'Tocca una colonna per i dettagli');
+
+  // Elenco dei mesi: un tocco apre quel mese
+  const elenco = document.getElementById('spese-mesi');
+  elenco.innerHTML = '';
+  mesi.forEach(v => {
+    const { riga } = creaRiga(nomeMese(v.mese), v.numero + (v.numero === 1 ? ' spesa' : ' spese'));
+    const destra = document.createElement('span');
+    destra.className = 'riga-valore';
+    destra.textContent = euroTesto(v.totale) + ' €';
+    riga.append(destra);
+    riga.addEventListener('click', () => {
+      meseVisto = v.mese;
+      mostraSottoschedaSpese('mese');
+      window.scrollTo(0, 0);
+    });
+    elenco.append(riga);
+  });
+}
+
+
+// ---------- Mese / Tutti i mesi ----------
+
+const sottoschedeSpese = document.querySelectorAll('.sottoscheda-spese');
+let vistaSpese = 'mese';
+
+function mostraSottoschedaSpese(nome) {
+  vistaSpese = nome;
+  sottoschedeSpese.forEach(b => b.classList.toggle('attiva', b.dataset.spese === nome));
+  document.getElementById('spese-vista-mese').hidden = nome !== 'mese';
+  document.getElementById('spese-vista-storico').hidden = nome !== 'storico';
+  mostraSpese();
+}
+
+sottoschedeSpese.forEach(b => {
+  b.addEventListener('click', () => mostraSottoschedaSpese(b.dataset.spese));
+});
+
+function mostraSpese() {
+  const spese = leggiSpese();
+  if (vistaSpese === 'mese') mostraRiepilogoMese(spese);
+  else mostraStoricoSpese(spese);
+}
+
+
+// ---------- Modifica di una spesa ----------
+
+const veloSpesa = document.getElementById('velo-spesa');
+const modImporto = document.getElementById('mod-spesa-importo');
+const modQuando = document.getElementById('mod-spesa-quando');
+const modNota = document.getElementById('mod-spesa-nota');
+const modEsito = document.getElementById('mod-spesa-esito');
+const modCategorie = document.getElementById('mod-spesa-categorie');
+let spesaInModifica = null;
+let categoriaScelta = null;
+
+creaGrigliaCategorie(modCategorie, id => {
+  categoriaScelta = id;
+  modCategorie.querySelectorAll('.categoria').forEach(b => {
+    b.classList.toggle('scelta', b.dataset.categoria === id);
+  });
+});
+
+function apriModificaSpesa(spesa) {
+  spesaInModifica = spesa;
+  categoriaScelta = spesa.categoria;
+  modImporto.value = euroTesto(spesa.importoCent);
+  modQuando.value = perCampoDataOra(spesa.quando);
+  modNota.value = spesa.nota || '';
+  modEsito.textContent = '';
+  modCategorie.querySelectorAll('.categoria').forEach(b => {
+    b.classList.toggle('scelta', b.dataset.categoria === spesa.categoria);
+  });
+  veloSpesa.hidden = false;
+}
+
+function chiudiModificaSpesa() {
+  veloSpesa.hidden = true;
+  spesaInModifica = null;
+}
+
+document.getElementById('btn-spesa-chiudi').addEventListener('click', chiudiModificaSpesa);
+veloSpesa.addEventListener('click', e => { if (e.target === veloSpesa) chiudiModificaSpesa(); });
+
+document.getElementById('form-spesa-mod').addEventListener('submit', e => {
+  e.preventDefault();
+  if (!spesaInModifica) return;
+
+  const centesimi = Math.round(parseFloat(modImporto.value.replace(',', '.')) * 100);
+  if (!isFinite(centesimi) || centesimi <= 0) {
+    modEsito.textContent = 'Scrivi un importo valido.';
+    return;
+  }
+  const quando = new Date(modQuando.value);
+  if (isNaN(quando)) {
+    modEsito.textContent = 'Scrivi una data valida.';
+    return;
+  }
+
+  const spese = leggiSpese().map(s => s.id !== spesaInModifica.id ? s : {
+    ...s,
+    importoCent: centesimi,
+    categoria: categoriaScelta,
+    quando: quando.toISOString(),
+    nota: modNota.value.trim(),
+    daRivedere: false // controllata a mano: non serve piu il segnale
+  });
+  scriviJSON(CHIAVE_SPESE, spese);
+  chiudiModificaSpesa();
+  mostraSpese();
+});
+
+document.getElementById('btn-spesa-elimina').addEventListener('click', () => {
+  if (!spesaInModifica) return;
+  if (!confirm('Eliminare questa spesa?')) return;
+  scriviJSON(CHIAVE_SPESE, leggiSpese().filter(s => s.id !== spesaInModifica.id));
+  chiudiModificaSpesa();
+  mostraSpese();
+});
+
+mostraSottoschedaSpese('mese');
+
+
+// ===================================================
 // Backup: esporta e importa (scheda Impostazioni)
 // ===================================================
 
@@ -1381,7 +1889,8 @@ document.getElementById('btn-esporta').addEventListener('click', async () => {
     esportatoIl: adesso.toISOString(),
     dati: {
       allenamenti: leggiJSON(CHIAVE_ALLENAMENTI, []),
-      svegliePreferite: leggiJSON(CHIAVE_PREFERITE, [])
+      svegliePreferite: leggiJSON(CHIAVE_PREFERITE, []),
+      spese: leggiSpese()
     }
   };
   const nomeFile = 'routine-backup-' + dataPerNomeFile(adesso) + '.json';
@@ -1423,6 +1932,7 @@ campoFileBackup.addEventListener('change', async () => {
 
     const daBackupAll = Array.isArray(backup.dati.allenamenti) ? backup.dati.allenamenti : [];
     const daBackupPref = Array.isArray(backup.dati.svegliePreferite) ? backup.dati.svegliePreferite : [];
+    const daBackupSpese = Array.isArray(backup.dati.spese) ? backup.dati.spese : [];
 
     // Allenamenti: aggiunge solo quelli validi e non già presenti
     const allenamenti = leggiJSON(CHIAVE_ALLENAMENTI, []);
@@ -1440,20 +1950,32 @@ campoFileBackup.addEventListener('change', async () => {
       COMANDI_SVEGLIA[p.ripeti] && !idPref.has(p.id)
     );
 
-    if (nuoviAll.length === 0 && nuovePref.length === 0) {
+    // Spese: stesso criterio
+    const spese = leggiSpese();
+    const idSpese = new Set(spese.map(s => s.id));
+    const nuoveSpese = daBackupSpese.filter(s =>
+      s && s.id && typeof s.importoCent === 'number' && s.quando &&
+      CATEGORIA[s.categoria] && !idSpese.has(s.id)
+    );
+
+    if (nuoviAll.length === 0 && nuovePref.length === 0 && nuoveSpese.length === 0) {
       esitoBackup.textContent = 'Niente di nuovo nel backup.';
       return;
     }
 
     const domanda = 'Importare dal backup del ' + formattaData(backup.esportatoIl) + ': ' +
-      nuoviAll.length + ' allenamenti e ' + nuovePref.length + ' sveglie preferite?';
+      nuoviAll.length + ' allenamenti, ' + nuovePref.length + ' sveglie preferite e ' +
+      nuoveSpese.length + ' spese?';
     if (!confirm(domanda)) return;
 
     scriviJSON(CHIAVE_ALLENAMENTI, allenamenti.concat(nuoviAll));
     scriviJSON(CHIAVE_PREFERITE, preferite.concat(nuovePref));
-    esitoBackup.textContent = 'Importati ' + nuoviAll.length + ' allenamenti e ' + nuovePref.length + ' preferite.';
+    scriviJSON(CHIAVE_SPESE, spese.concat(nuoveSpese));
+    esitoBackup.textContent = 'Importati ' + nuoviAll.length + ' allenamenti, ' +
+      nuovePref.length + ' preferite e ' + nuoveSpese.length + ' spese.';
     aggiornaPalestra();
     mostraPreferite();
+    mostraSpese();
   } catch {
     esitoBackup.textContent = 'File non valido: scegli un backup di Routine (.json).';
   }

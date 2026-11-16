@@ -25,6 +25,16 @@
     <symbol id="i-montagna" viewBox="0 0 24 24"><path d="M3 20l6.5-11 4 6.5 2.5-3.5L21 20z"/></symbol>
     <symbol id="i-luna" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></symbol>
     <symbol id="i-bersaglio" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></symbol>
+    <symbol id="i-caffe" viewBox="0 0 24 24"><path d="M4 8h12v5a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z"/><path d="M16 9h2.4a2.6 2.6 0 0 1 0 5.2H16"/><path d="M7 3v2M11 3v2"/></symbol>
+    <symbol id="i-bicchiere" viewBox="0 0 24 24"><path d="M4 5h16l-8 8z"/><path d="M12 13v6"/><path d="M8.5 19h7"/></symbol>
+    <symbol id="i-piatto" viewBox="0 0 24 24"><path d="M7 3v8M5 3v4a2 2 0 0 0 4 0V3M7 11v10"/><path d="M17.5 3c-1.4 1.9-2 3.6-2 6 0 1.5.7 2.2 2 2.2V21"/></symbol>
+    <symbol id="i-coriandoli" viewBox="0 0 24 24"><path d="M3 21l6-13 7 7z"/><path d="M14.5 3.5l.8 1.8M19.5 5.5L18 7M21 10.5h-2M17.5 13.5l1.5 1.3"/></symbol>
+    <symbol id="i-auto" viewBox="0 0 24 24"><path d="M5 17v-4l1.8-4.2A2 2 0 0 1 8.6 7.5h6.8a2 2 0 0 1 1.8 1.3L19 13v4z"/><path d="M5 13h14"/><circle cx="8.2" cy="17" r="1.5"/><circle cx="15.8" cy="17" r="1.5"/></symbol>
+    <symbol id="i-pesce" viewBox="0 0 24 24"><path d="M16 12c0-3.2-3.1-6-7-6-3.6 0-6.6 2.4-8 6 1.4 3.6 4.4 6 8 6 3.9 0 7-2.8 7-6z"/><path d="M16 12l6-4v8z"/><path d="M8.5 10.5h.01"/></symbol>
+    <symbol id="i-borsa" viewBox="0 0 24 24"><path d="M5 8h14l-1.2 12H6.2z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></symbol>
+    <symbol id="i-ricorrente" viewBox="0 0 24 24"><path d="M4 11a8 8 0 0 1 13.7-5.6L20 7.7"/><path d="M20 3.7v4h-4"/><path d="M20 13a8 8 0 0 1-13.7 5.6L4 16.3"/><path d="M4 20.3v-4h4"/></symbol>
+    <symbol id="i-punti" viewBox="0 0 24 24"><path d="M6 12h.01M12 12h.01M18 12h.01"/></symbol>
+    <symbol id="i-euro" viewBox="0 0 24 24"><path d="M17 6.5A6.5 6.5 0 0 0 7.5 12 6.5 6.5 0 0 0 17 17.5"/><path d="M4 10.5h8M4 13.5h8"/></symbol>
     <symbol id="i-battito" viewBox="0 0 24 24"><path d="M3 12h4l2-5 4 10 2-5h6"/></symbol>
   </svg>
   <main>
@@ -93,7 +103,96 @@
           <button type="button" class="btn-ingranaggio" data-impostazioni aria-label="Impostazioni"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h9"/><path d="M19 6h1"/><circle cx="16" cy="6" r="2.5"/><path d="M4 12h3"/><path d="M13 12h7"/><circle cx="10" cy="12" r="2.5"/><path d="M4 18h11"/><circle cx="18" cy="18" r="2.5"/></svg></button>
         </div>
       </header>
-      <div class="vuoto">Tastierino, categorie e riepilogo del mese. In costruzione.</div>
+      <!-- Inserimento: importo col tastierino, poi un tocco sulla categoria -->
+      <div class="card spesa-nuova">
+        <div class="spesa-testa">
+          <div id="spesa-importo" class="spesa-importo mono">0,00<span class="unita">&euro;</span></div>
+        </div>
+        <div class="spesa-riga-meta">
+          <span id="spesa-quando" class="testo-sec"></span>
+          <button type="button" id="btn-spesa-nota" class="btn-testo">+ nota</button>
+        </div>
+        <label class="campo" id="campo-spesa-nota" hidden>
+          <span>Nota</span>
+          <input type="text" id="spesa-nota" maxlength="80" autocomplete="off" placeholder="Opzionale">
+        </label>
+        <div id="tastierino" class="tastierino"></div>
+        <span class="etichetta centrato">Tocca la categoria per salvare</span>
+        <div id="categorie-spesa" class="categorie"></div>
+      </div>
+
+      <div id="spesa-conferma" class="conferma" hidden>
+        <span id="spesa-conferma-testo"></span>
+        <button type="button" id="btn-spesa-annulla" class="btn-testo">Annulla</button>
+      </div>
+
+      <!-- Mese corrente oppure resoconto di tutti i mesi -->
+      <div class="sottoschede due">
+        <button type="button" class="sottoscheda-spese" data-spese="mese">Mese</button>
+        <button type="button" class="sottoscheda-spese" data-spese="storico">Tutti i mesi</button>
+      </div>
+
+      <div id="spese-vista-mese">
+        <div class="card hero">
+          <div class="navmese">
+            <button type="button" id="btn-mese-prec" class="btn-freccia" aria-label="Mese precedente">&lsaquo;</button>
+            <span id="spese-mese-nome" class="etichetta"></span>
+            <button type="button" id="btn-mese-succ" class="btn-freccia" aria-label="Mese successivo">&rsaquo;</button>
+          </div>
+          <div id="spese-totale" class="hero-valore">0,00<span class="unita">&euro;</span></div>
+          <div id="spese-confronto" class="mono spesa-confronto"></div>
+          <div class="strumenti due">
+            <div class="strumento">
+              <span class="strumento-etichetta">Media al giorno</span>
+              <span id="spese-media" class="strumento-valore">0,00<span class="unita">&euro;</span></span>
+            </div>
+            <div class="strumento">
+              <span class="strumento-etichetta">Vita sociale</span>
+              <span id="spese-sociale" class="strumento-valore">0,00<span class="unita">&euro;</span></span>
+            </div>
+          </div>
+        </div>
+
+        <h2 class="sezione">Per categoria</h2>
+        <div id="spese-categorie" class="card"></div>
+
+        <h2 class="sezione">Spese del mese</h2>
+        <ul id="spese-elenco" class="lista lista-apribile"></ul>
+        <p id="spese-elenco-vuoto" class="nota">Nessuna spesa in questo mese.</p>
+      </div>
+
+      <div id="spese-vista-storico" hidden>
+        <div class="card hero">
+          <span class="etichetta">Totale registrato</span>
+          <div id="spese-totale-tutto" class="hero-valore">0,00<span class="unita">&euro;</span></div>
+          <div class="strumenti">
+            <div class="strumento">
+              <span class="strumento-etichetta">Media mese</span>
+              <span id="spese-media-mese" class="strumento-valore">0,00<span class="unita">&euro;</span></span>
+            </div>
+            <div class="strumento">
+              <span class="strumento-etichetta">Piu alto</span>
+              <span id="spese-mese-alto" class="strumento-valore">n/d</span>
+              <span id="spese-mese-alto-nome" class="strumento-nota"></span>
+            </div>
+            <div class="strumento">
+              <span class="strumento-etichetta">Mesi</span>
+              <span id="spese-mesi-num" class="strumento-valore">0</span>
+            </div>
+          </div>
+        </div>
+
+        <h2 class="sezione">Spesa per mese</h2>
+        <div class="grafico">
+          <div id="info-spese-mesi" class="grafico-info"></div>
+          <div id="grafico-spese-mesi"></div>
+          <div class="grafico-didascalia">ultimi 12 mesi</div>
+        </div>
+
+        <h2 class="sezione">Mesi</h2>
+        <ul id="spese-mesi" class="lista lista-apribile"></ul>
+        <p id="spese-mesi-vuoto" class="nota">Nessuna spesa registrata.</p>
+      </div>
     </section>
 
     <!-- ========== Vista Salute (Sonno, Corsa, Palestra) ========== -->
@@ -388,6 +487,33 @@
     </div>
   </div>
 
+
+  <!-- Pannello di modifica spesa (si apre dal basso) -->
+  <div id="velo-spesa" class="velo" hidden>
+    <form id="form-spesa-mod" class="foglio">
+      <h3>Modifica spesa</h3>
+      <label class="campo">
+        <span>Importo</span>
+        <input type="text" id="mod-spesa-importo" inputmode="decimal" autocomplete="off" required>
+      </label>
+      <div class="campo">
+        <span>Categoria</span>
+        <div id="mod-spesa-categorie" class="categorie"></div>
+      </div>
+      <label class="campo">
+        <span>Quando</span>
+        <input type="datetime-local" id="mod-spesa-quando" required>
+      </label>
+      <label class="campo">
+        <span>Nota</span>
+        <input type="text" id="mod-spesa-nota" maxlength="80" autocomplete="off" placeholder="Opzionale">
+      </label>
+      <p id="mod-spesa-esito" class="esito esito-errore"></p>
+      <button type="submit" class="btn-primario">Salva modifiche</button>
+      <button type="button" id="btn-spesa-elimina" class="btn-secondario btn-rosso">Elimina spesa</button>
+      <button type="button" id="btn-spesa-chiudi" class="btn-testo">Annulla</button>
+    </form>
+  </div>
 
   <!-- Barra delle schede in basso -->
   <nav class="tabbar">

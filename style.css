@@ -176,7 +176,9 @@ main {
   border: 1px solid var(--bordo);
   border-radius: 12px;
 }
-.sottoscheda {
+.sottoschede.due { grid-template-columns: 1fr 1fr; }
+.sottoscheda,
+.sottoscheda-spese {
   padding: 9px 2px;
   font-size: 14px;
   font-family: inherit;
@@ -186,7 +188,8 @@ main {
   border-radius: 9px;
   cursor: pointer;
 }
-.sottoscheda.attiva {
+.sottoscheda.attiva,
+.sottoscheda-spese.attiva {
   color: var(--su-accento);
   background: var(--accento);
   font-weight: 600;
@@ -630,6 +633,199 @@ main {
 /* Lo storico notti è solo da leggere */
 #sonno-storico .riga { cursor: default; }
 #sonno-storico .riga:active { background: none; }
+
+
+/* ---------- Spese ---------- */
+.spesa-nuova { gap: 10px; }
+.spesa-testa {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.spesa-importo {
+  font-size: 40px;
+  font-weight: 500;
+  letter-spacing: -1px;
+  color: var(--accento);
+}
+.spesa-importo.vuoto-valore { color: var(--testo-terziario); }
+.btn-canc {
+  flex: none;
+  padding: 6px;
+  color: var(--testo-secondario);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+.btn-canc:active { opacity: 0.5; }
+.spesa-riga-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: -4px;
+}
+.spesa-riga-meta .btn-testo { padding: 2px 0; font-size: 14px; }
+
+/* Tastierino */
+.tastierino {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+.tasto {
+  height: 46px;
+  font-size: 22px;
+  font-family: var(--mono);
+  color: var(--testo);
+  background: var(--superficie-2);
+  border: 1px solid var(--bordo);
+  border-radius: 12px;
+  cursor: pointer;
+}
+.tasto.piccolo { font-size: 16px; color: var(--testo-secondario); }
+.tasto:active { background: var(--bordo); }
+
+/* Griglia delle categorie */
+.categorie {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 5px;
+}
+.categoria {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 8px 2px;
+  font-size: 9.5px;
+  line-height: 1.15;
+  font-family: inherit;
+  text-align: center;
+  color: var(--testo-secondario);
+  background: var(--superficie-2);
+  border: 1px solid var(--bordo);
+  border-radius: 11px;
+  cursor: pointer;
+}
+.categoria svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: var(--testo-terziario);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.categoria.sociale svg { stroke: var(--accento); }
+.categoria:active,
+.categoria.scelta {
+  color: var(--testo);
+  border-color: var(--accento);
+  background: var(--superficie);
+}
+.categoria.scelta svg { stroke: var(--accento); }
+
+/* Conferma dopo il salvataggio */
+.conferma {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 16px;
+  padding: 9px 13px;
+  font-size: 13px;
+  background: var(--superficie);
+  border: 1px solid var(--accento);
+  border-radius: 12px;
+}
+.conferma .btn-testo { padding: 0; font-size: 13px; }
+
+/* Navigazione fra i mesi */
+.navmese {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.btn-freccia {
+  padding: 0 10px;
+  font-size: 24px;
+  line-height: 1;
+  color: var(--accento);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+.btn-freccia[disabled] { color: var(--bordo-forte); }
+.strumenti.due { grid-template-columns: 1fr 1fr; }
+.spesa-confronto {
+  margin-top: -4px;
+  font-size: 12px;
+  color: var(--testo-secondario);
+}
+.spesa-confronto.su { color: #fb923c; }
+.spesa-confronto.giu { color: var(--successo); }
+
+/* Barre per categoria */
+.barra-cat {
+  display: grid;
+  grid-template-columns: 86px 1fr 62px;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--testo-secondario);
+}
+.barra-cat + .barra-cat { margin-top: 8px; }
+.barra-cat-nome {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.barra-cat-traccia {
+  height: 8px;
+  background: var(--superficie-2);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.barra-cat-riempimento {
+  height: 100%;
+  background: var(--testo-secondario);
+  border-radius: 4px;
+}
+.barra-cat.sociale .barra-cat-riempimento { background: var(--accento); }
+.barra-cat-valore {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 12.5px;
+  color: var(--testo);
+  text-align: right;
+}
+.altre-cat {
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--accento);
+  text-align: center;
+  background: none;
+  border: none;
+  width: 100%;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+/* Spesa arrivata dalla voce e ancora da controllare */
+.da-rivedere {
+  margin-left: 6px;
+  padding: 1px 6px;
+  font-size: 10px;
+  font-family: var(--mono);
+  letter-spacing: 0.5px;
+  color: var(--su-accento);
+  background: var(--accento-chiaro);
+  border-radius: 6px;
+  vertical-align: 1px;
+}
 
 /* ---------- Pannello che si apre dal basso ---------- */
 .velo {
