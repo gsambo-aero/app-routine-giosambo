@@ -2980,6 +2980,19 @@ async function chiamaGitHub(percorso, opzioni = {}) {
   return risposta.status === 204 ? true : risposta.json();
 }
 
+// Claude a volte avvolge il JSON in testo o in un blocco di codice:
+// si tiene solo la parte dalla prima graffa aperta all'ultima chiusa
+function estraiJSON(testo) {
+  try {
+    return JSON.parse(testo);
+  } catch {
+    const inizio = testo.indexOf('{');
+    const fine = testo.lastIndexOf('}');
+    if (inizio < 0 || fine <= inizio) throw new Error('nessun JSON');
+    return JSON.parse(testo.slice(inizio, fine + 1));
+  }
+}
+
 // I file arrivano in base64: vanno letti come UTF-8, altrimenti gli accenti si rompono
 function daBase64(testo) {
   const binario = atob(testo.replace(/\s/g, ''));
@@ -2989,17 +3002,45 @@ function daBase64(testo) {
 
 
 // ---------- Applicazione di cio che arriva ----------
+// Formato 1 (vecchio, ancora accettato): un solo oggetto { tipo: 'spesa' | 'impegno', ... }
+// Formato 2 (voce multipla): { versione: 2, riepilogo, azioni: [ ... ] }, dove ogni azione e:
+//   spesa    { importoEuro, categoria, nota, data, certezza }
+//   impegno  { titolo, data, ora, nota, certezza }
+//   fatto    { titolo }   segna fatto un impegno ancora aperto dell'agenda
+//   annulla  { cosa }     'spesa' o 'impegno' (l'ultimo arrivato dalla voce), 'tutto' (l'ultimo vocale)
+//   nota     { testo }    cio che Claude non ha capito: va in agenda, segnato da rivedere
 
-// Una spesa dettata: { tipo: 'spesa', importoEuro, categoria, nota, quando, sicuro }
+const CHIAVE_ULTIMO_VOCALE = 'ultimoVocale'; // cosa ha creato l'ultimo vocale, per poterlo annullare
+
+let contatoreIdVoce = 0;
+function nuovoIdVoce() {
+  contatoreIdVoce += 1;
+  return 'v' + Date.now() + '-' + contatoreIdVoce;
+}
+
+// Claude dichiara se e sicuro: "sicuro": false (formato 1) o "certezza": "bassa" (formato 2)
+function arrivoIncerto(dato) {
+  return dato.sicuro === false || dato.certezza === 'bassa';
+}
+
+// Il momento di una spesa: adesso se e di oggi, mezzogiorno se e di un altro giorno
+function momentoSpesa(dato) {
+  if (dato.quando && !isNaN(new Date(dato.quando))) return new Date(dato.quando);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dato.data || '') && dato.data !== giornoISO(new Date())) {
+    const [anno, mese, giorno] = dato.data.split('-').map(Number);
+    return new Date(anno, mese - 1, giorno, 12, 0);
+  }
+  return new Date();
+}
+
 function applicaSpesaArrivata(dato) {
-  const centesimi = Math.round(Number(dato.importoEuro) * 100);
+  const centesimi = Math.round(Number(String(dato.importoEuro).replace(',', '.')) * 100);
   if (!isFinite(centesimi) || centesimi <= 0) return null;
 
   const categoriaNota = CATEGORIA[dato.categoria] ? dato.categoria : 'altro';
-  const quando = dato.quando && !isNaN(new Date(dato.quando)) ? new Date(dato.quando) : new Date();
-
+  const quando = momentoSpesa(dato);
   const spesa = {
-    id: 'v' + Date.now().toString() + Math.floor(Math.random() * 1000),
+    id: nuovoIdVoce(),
     importoCent: centesimi,
     categoria: categoriaNota,
     nota: (dato.nota || '').toString().slice(0, 80),
@@ -3007,22 +3048,25 @@ function applicaSpesaArrivata(dato) {
     fonte: 'voce',
     // Se Claude non era sicuro, o ha scelto una categoria che non esiste,
     // la spesa resta segnalata invece di essere indovinata
-    daRivedere: dato.sicuro === false || !CATEGORIA[dato.categoria]
+    daRivedere: arrivoIncerto(dato) || !CATEGORIA[dato.categoria]
   };
   scriviJSON(CHIAVE_SPESE, leggiSpese().concat(spesa));
-  return 'spesa';
+  const giorno = giornoISO(quando) === giornoISO(new Date()) ? '' : ', ' + formattaData(quando.toISOString());
+  return {
+    tipo: 'spesa', id: spesa.id,
+    testo: 'Spesa ' + euroTesto(centesimi) + ' €, ' + CATEGORIA[categoriaNota].nome.toLowerCase() +
+      (spesa.nota ? ' (' + spesa.nota + ')' : '') + giorno
+  };
 }
 
-// Un impegno dettato: { tipo: 'impegno', titolo, data, ora, nota, sicuro }
 function applicaImpegnoArrivato(dato) {
   const titolo = (dato.titolo || '').toString().trim();
   if (!titolo) return null;
 
   const data = /^\d{4}-\d{2}-\d{2}$/.test(dato.data || '') ? dato.data : null;
   const ora = /^\d{2}:\d{2}$/.test(dato.ora || '') ? dato.ora : null;
-
   const voce = {
-    id: 'v' + Date.now().toString() + Math.floor(Math.random() * 1000),
+    id: nuovoIdVoce(),
     titolo: titolo.slice(0, 80),
     data: ora && !data ? giornoISO(new Date()) : data, // un orario senza giorno vale oggi
     ora,
@@ -3030,28 +3074,146 @@ function applicaImpegnoArrivato(dato) {
     fatto: false,
     fattoIl: null,
     fonte: 'voce',
-    daRivedere: dato.sicuro === false
+    daRivedere: arrivoIncerto(dato)
   };
   scriviJSON(CHIAVE_AGENDA, leggiAgenda().concat(voce));
-  return 'impegno';
+  return {
+    tipo: 'impegno', id: voce.id,
+    testo: 'Impegno: ' + voce.titolo + (voce.data ? ', ' + formattaData(voce.data + 'T12:00:00') : '') + (ora ? ' ' + ora : '')
+  };
 }
 
-function applicaArrivo(dato) {
-  if (!dato || typeof dato !== 'object') return null;
-  if (dato.tipo === 'spesa') return applicaSpesaArrivata(dato);
-  if (dato.tipo === 'impegno' || dato.tipo === 'agenda') return applicaImpegnoArrivato(dato);
+// Cio che Claude non ha capito: non si perde e non si indovina
+function applicaNotaArrivata(dato) {
+  const testo = (dato.testo || dato.testo_originale || dato.titolo || '').toString().trim();
+  if (!testo) return null;
+  const voce = {
+    id: nuovoIdVoce(),
+    titolo: testo.slice(0, 80),
+    data: null,
+    ora: null,
+    nota: 'Arrivata dalla voce: da rivedere',
+    fatto: false,
+    fattoIl: null,
+    fonte: 'voce',
+    daRivedere: true
+  };
+  scriviJSON(CHIAVE_AGENDA, leggiAgenda().concat(voce));
+  return { tipo: 'rivedere', id: voce.id, testo: 'Da rivedere: ' + voce.titolo };
+}
+
+// "Segna fatto ...": prima il titolo identico, poi uno che lo contiene
+function applicaFattoArrivato(dato) {
+  const cercato = normalizzaTitolo(dato.titolo || dato.testo);
+  if (!cercato) return null;
+  const voci = leggiAgenda();
+  const aperte = voci.filter(v => !v.fatto && normalizzaTitolo(v.titolo));
+  const trovata = aperte.find(v => normalizzaTitolo(v.titolo) === cercato) ||
+    aperte.find(v => normalizzaTitolo(v.titolo).includes(cercato) || cercato.includes(normalizzaTitolo(v.titolo)));
+  if (!trovata) {
+    registra('errore', 'voce', 'Da segnare fatto, ma non trovato in agenda: ' + (dato.titolo || dato.testo));
+    return null;
+  }
+  trovata.fatto = true;
+  trovata.fattoIl = new Date().toISOString();
+  scriviJSON(CHIAVE_AGENDA, voci);
+  return { tipo: 'fatto', id: trovata.id, testo: 'Segnato fatto: ' + trovata.titolo };
+}
+
+// "Annulla ...": vale per cio che era arrivato PRIMA di questo vocale
+function applicaAnnullaArrivato(dato) {
+  const cosa = dato.cosa === 'spesa' || dato.cosa === 'impegno' ? dato.cosa : 'tutto';
+
+  if (cosa === 'spesa' || cosa === 'impegno') {
+    const elenco = cosa === 'spesa' ? leggiSpese() : leggiAgenda();
+    let i = elenco.length - 1;
+    while (i >= 0 && elenco[i].fonte !== 'voce') i -= 1;
+    if (i < 0) {
+      registra('errore', 'voce', 'Niente da annullare: nessun' + (cosa === 'spesa' ? 'a spesa' : ' impegno') + ' arrivato dalla voce.');
+      return null;
+    }
+    const [tolto] = elenco.splice(i, 1);
+    scriviJSON(cosa === 'spesa' ? CHIAVE_SPESE : CHIAVE_AGENDA, elenco);
+    return {
+      tipo: 'annullato',
+      testo: cosa === 'spesa'
+        ? 'Annullata la spesa ' + euroTesto(tolto.importoCent) + ' €, ' + (CATEGORIA[tolto.categoria] ? CATEGORIA[tolto.categoria].nome.toLowerCase() : tolto.categoria)
+        : 'Annullato l’impegno: ' + tolto.titolo
+    };
+  }
+
+  const ultimo = leggiJSON(CHIAVE_ULTIMO_VOCALE, null);
+  if (!ultimo) {
+    registra('errore', 'voce', 'Niente da annullare: nessun vocale recente.');
+    return null;
+  }
+  const creati = new Set(ultimo.creati || []);
+  const fatti = new Set(ultimo.fatti || []);
+  scriviJSON(CHIAVE_SPESE, leggiSpese().filter(s => !creati.has(s.id)));
+  scriviJSON(CHIAVE_AGENDA, leggiAgenda()
+    .filter(v => !creati.has(v.id))
+    .map(v => (fatti.has(v.id) ? Object.assign({}, v, { fatto: false, fattoIl: null }) : v)));
+  localStorage.removeItem(CHIAVE_ULTIMO_VOCALE);
+  return { tipo: 'annullato', testo: 'Annullato l’ultimo vocale (' + (creati.size + fatti.size) + ' voci).' };
+}
+
+function applicaAzione(azione) {
+  if (!azione || typeof azione !== 'object') return null;
+  if (azione.tipo === 'spesa') return applicaSpesaArrivata(azione);
+  if (azione.tipo === 'impegno' || azione.tipo === 'agenda') return applicaImpegnoArrivato(azione);
+  if (azione.tipo === 'fatto') return applicaFattoArrivato(azione);
+  if (azione.tipo === 'annulla') return applicaAnnullaArrivato(azione);
+  if (azione.tipo === 'nota') return applicaNotaArrivata(azione);
   return null;
+}
+
+// Applica un file della casella. Restituisce l'elenco di cio che e stato fatto (vuoto se niente).
+function applicaArrivo(dato) {
+  if (!dato || typeof dato !== 'object') return [];
+  const azioni = Array.isArray(dato.azioni) ? dato.azioni : [dato];
+  // Prima gli "annulla", cosi agiscono su cio che c'era prima di questo vocale
+  const ordinate = azioni.filter(a => a && a.tipo === 'annulla')
+    .concat(azioni.filter(a => !a || a.tipo !== 'annulla'));
+
+  const risultati = [];
+  ordinate.forEach(azione => {
+    let esito = null;
+    try {
+      esito = applicaAzione(azione);
+    } catch {
+      esito = null;
+    }
+    if (esito) {
+      risultati.push(esito);
+    } else if (azione && azione.tipo !== 'fatto' && azione.tipo !== 'annulla') {
+      // "fatto" e "annulla" spiegano gia da soli nel registro perche non sono andati
+      registra('errore', 'voce', 'Pezzo non applicato: ' + JSON.stringify(azione).slice(0, 120));
+    }
+  });
+
+  // Memoria dell'ultimo vocale, per "annulla tutto"
+  const creati = risultati.filter(r => r.tipo === 'spesa' || r.tipo === 'impegno' || r.tipo === 'rivedere').map(r => r.id);
+  const fatti = risultati.filter(r => r.tipo === 'fatto').map(r => r.id);
+  if (creati.length || fatti.length) {
+    scriviJSON(CHIAVE_ULTIMO_VOCALE, { quando: new Date().toISOString(), creati, fatti });
+  }
+  return risultati;
 }
 
 
 // ---------- Lettura della casella ----------
 
 function mostraArrivi(conteggi) {
-  const parti = [];
-  if (conteggi.spesa) parti.push(conteggi.spesa + (conteggi.spesa === 1 ? ' spesa' : ' spese'));
-  if (conteggi.impegno) parti.push(conteggi.impegno + (conteggi.impegno === 1 ? ' impegno' : ' impegni'));
+  const voci = [
+    ['spesa', ' spesa', ' spese'],
+    ['impegno', ' impegno', ' impegni'],
+    ['fatto', ' segnato fatto', ' segnati fatti'],
+    ['annullato', ' annullato', ' annullati'],
+    ['rivedere', ' da rivedere', ' da rivedere']
+  ];
+  const parti = voci.filter(([k]) => conteggi[k]).map(([k, uno, tanti]) => conteggi[k] + (conteggi[k] === 1 ? uno : tanti));
   if (!parti.length) return;
-  elArriviTesto.textContent = 'Arrivati dalla voce: ' + parti.join(' e ') + '.';
+  elArriviTesto.textContent = 'Arrivati dalla voce: ' + parti.join(', ') + '.';
   elArrivi.hidden = false;
 }
 
@@ -3084,24 +3246,24 @@ async function leggiCasella(manuale) {
     // I nomi dei file gia applicati restano in memoria: se la cancellazione
     // non riesce, al giro dopo il dato non viene inserito due volte
     const fatti = leggiJSON(CHIAVE_ARRIVI_FATTI, []);
-    const conteggi = { spesa: 0, impegno: 0 };
+    const conteggi = {};
     let scartati = 0;
 
     for (const f of file) {
       if (fatti.includes(f.name)) { await eliminaDallaCasella(f); continue; }
-      let esito = null;
-      let dato = null;
+      let risultati = [];
       try {
         const contenuto = await chiamaGitHub('/contents/' + CARTELLA_ARRIVI + '/' + encodeURIComponent(f.name));
-        dato = JSON.parse(daBase64(contenuto.content));
-        esito = applicaArrivo(dato);
+        risultati = applicaArrivo(estraiJSON(daBase64(contenuto.content)));
       } catch {
-        esito = null;
+        risultati = [];
       }
-      if (esito) {
-        conteggi[esito] += 1;
+      if (risultati.length) {
+        risultati.forEach(r => {
+          conteggi[r.tipo] = (conteggi[r.tipo] || 0) + 1;
+          registra('voce', 'voce', r.testo);
+        });
         fatti.push(f.name);
-        registra('voce', 'voce', descriviArrivo(dato));
       } else {
         scartati += 1;
         registra('errore', 'voce', 'Frase non applicata: contenuto non valido (' + f.name + ').');
@@ -3116,7 +3278,7 @@ async function leggiCasella(manuale) {
 
     if (manuale) {
       statoGithub.textContent = '';
-      const totale = conteggi.spesa + conteggi.impegno;
+      const totale = Object.values(conteggi).reduce((a, b) => a + b, 0);
       mostraEsitoGitHub(
         totale === 0 ? 'Niente di valido nella casella.' : 'Applicati ' + totale + ' arrivi.' +
         (scartati ? ' ' + scartati + ' non letti.' : ''), false);
@@ -3132,14 +3294,6 @@ async function leggiCasella(manuale) {
   }
 }
 
-// Una riga leggibile per il registro: cosa e arrivato dalla voce
-function descriviArrivo(dato) {
-  if (dato.tipo === 'spesa') {
-    const euro = Number(dato.importoEuro).toFixed(2).replace('.', ',');
-    return 'Spesa ' + euro + ' \u20ac, ' + (dato.categoria || 'altro') + (dato.nota ? ' (' + dato.nota + ')' : '');
-  }
-  return 'Impegno: ' + (dato.titolo || '') + (dato.data ? ', ' + dato.data : '') + (dato.ora ? ' ' + dato.ora : '');
-}
 
 async function eliminaDallaCasella(file) {
   try {
