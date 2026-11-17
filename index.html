@@ -53,6 +53,12 @@
           <button type="button" class="btn-ingranaggio" data-impostazioni aria-label="Impostazioni"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h9"/><path d="M19 6h1"/><circle cx="16" cy="6" r="2.5"/><path d="M4 12h3"/><path d="M13 12h7"/><circle cx="10" cy="12" r="2.5"/><path d="M4 18h11"/><circle cx="18" cy="18" r="2.5"/></svg></button>
         </div>
       </header>
+      <!-- Promemoria del backup: compare se l'ultimo ha piu di 7 giorni -->
+      <div id="promemoria-backup" class="promemoria" hidden>
+        <span id="promemoria-backup-testo"></span>
+        <button type="button" id="btn-backup-oggi" class="btn-promemoria">Esporta</button>
+      </div>
+
       <!-- Riepilogo mattutino scritto da Claude (routine-dati/out/oggi.json) -->
       <div id="riepilogo-card" class="card riepilogo" hidden>
         <div class="hero-testa">
@@ -506,9 +512,18 @@
               <button id="btn-importa" class="btn-secondario">Importa backup</button>
               <input type="file" id="file-backup" accept=".json,application/json" hidden>
               <span id="ultimo-backup" class="testo-sec"></span>
+              <span id="stato-archivio" class="testo-sec"></span>
             </div>
             <p id="esito-backup" class="esito"></p>
             <p class="nota">I dati sono salvati solo su questo iPhone: esporta un backup ogni settimana e salvalo su iCloud Drive.</p>
+
+            <!-- Registro eventi: arrivi dalla voce ed errori di collegamento -->
+            <h2 class="sezione">Registro</h2>
+            <div class="card">
+              <ul id="registro-elenco" class="registro"></ul>
+              <button type="button" id="btn-svuota-registro" class="btn-testo">Svuota registro</button>
+            </div>
+            <p class="nota">Le ultime frasi arrivate dalla voce e gli errori di collegamento. Resta solo su questo iPhone.</p>
     </section>
   </main>
 

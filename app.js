@@ -16,6 +16,77 @@ function scriviJSON(chiave, valore) {
   localStorage.setItem(chiave, JSON.stringify(valore));
 }
 
+// ---------- Versione dei dati salvati ----------
+// Quando un giorno cambiera il modo di salvare qualcosa, qui si aggiunge
+// un passo di conversione: all'avvio i dati vecchi vengono portati al formato nuovo.
+const CHIAVE_VERSIONE_SCHEMA = 'versioneSchema';
+const VERSIONE_SCHEMA = 1;
+
+function migraDati() {
+  const versione = Number(localStorage.getItem(CHIAVE_VERSIONE_SCHEMA) || 0);
+  if (versione >= VERSIONE_SCHEMA) return;
+  // Versione 1: punto di partenza, nessuna conversione necessaria.
+  localStorage.setItem(CHIAVE_VERSIONE_SCHEMA, String(VERSIONE_SCHEMA));
+}
+migraDati();
+
+// ---------- Registro eventi (visibile in Impostazioni) ----------
+// Tiene le ultime frasi arrivate dalla voce e gli errori di collegamento,
+// cosi se qualcosa "sparisce" si puo vedere cosa e successo.
+const CHIAVE_REGISTRO = 'registroEventi';
+const MAX_REGISTRO = 50;
+const FONTI_REGISTRO = {
+  voce: 'Voce', github: 'GitHub', intervals: 'Intervals.icu', riepilogo: 'Riepilogo',
+  meteo: 'Meteo', backup: 'Backup', sistema: 'Sistema'
+};
+
+// tipo: 'voce' (arrivo applicato), 'errore', 'info'
+function registra(tipo, fonte, testo) {
+  try {
+    const voci = leggiJSON(CHIAVE_REGISTRO, []);
+    const ultima = voci[voci.length - 1];
+    // Lo stesso errore ripetuto (per esempio senza rete) si annota al massimo una volta l'ora
+    if (ultima && ultima.tipo === tipo && ultima.testo === testo &&
+        Date.now() - new Date(ultima.quando) < 3600000) return;
+    voci.push({ quando: new Date().toISOString(), tipo, fonte, testo: String(testo).slice(0, 160) });
+    scriviJSON(CHIAVE_REGISTRO, voci.slice(-MAX_REGISTRO));
+    mostraRegistro();
+  } catch {
+    // Il registro non deve mai bloccare l'app
+  }
+}
+
+function mostraRegistro() {
+  const elenco = document.getElementById('registro-elenco');
+  if (!elenco) return;
+  const voci = leggiJSON(CHIAVE_REGISTRO, []).slice(-20).reverse();
+  elenco.innerHTML = '';
+  if (voci.length === 0) {
+    const vuoto = document.createElement('li');
+    vuoto.className = 'registro-vuoto';
+    vuoto.textContent = 'Nessun evento registrato.';
+    elenco.append(vuoto);
+    return;
+  }
+  voci.forEach(v => {
+    const riga = document.createElement('li');
+    riga.className = 'registro-riga';
+    const segno = document.createElement('span');
+    segno.className = 'registro-segno tipo-' + v.tipo;
+    const centro = document.createElement('div');
+    centro.className = 'voce-centro';
+    const testo = document.createElement('div');
+    testo.className = 'registro-testo';
+    testo.textContent = v.testo;
+    const sotto = document.createElement('div');
+    sotto.className = 'voce-sotto';
+    sotto.textContent = formattaData(v.quando) + ' ' + formattaOra(v.quando) + ' \u00b7 ' + (FONTI_REGISTRO[v.fonte] || v.fonte);
+    centro.append(testo, sotto);
+    riga.append(segno, centro);
+    elenco.append(riga);
+  });
+}
+
 // Esegue un comando rapido, con un testo opzionale come input
 function apriComando(nome, testo) {
   let indirizzo = 'shortcuts://run-shortcut?name=' + encodeURIComponent(nome);
@@ -719,6 +790,7 @@ async function sincronizzaConEsito() {
   } catch (errore) {
     messaggioErrore = errore.message || 'Sincronizzazione non riuscita: controlla la connessione.';
     mostraEsitoSync(messaggioErrore, true);
+    registra('errore', 'intervals', messaggioErrore);
   }
   aggiornaSchedeSalute();
   return messaggioErrore;
@@ -763,8 +835,9 @@ async function sincronizzaSeServe() {
   try {
     await sincronizza();
     aggiornaSchedeSalute();
-  } catch {
-    // In automatico gli errori si ignorano: si vedranno con "Sincronizza ora"
+  } catch (errore) {
+    // In automatico l'errore non interrompe nulla: resta solo nel registro
+    registra('errore', 'intervals', errore.message || 'Sincronizzazione automatica non riuscita.');
   }
 }
 
@@ -1912,8 +1985,9 @@ async function leggiRiepilogo() {
     scriviJSON(CHIAVE_RIEPILOGO, r);
     mostraRiepilogoOggi();
     mostraGiornata();
-  } catch {
+  } catch (errore) {
     // Senza rete o senza file resta quello che c'era: il resto di Oggi funziona lo stesso
+    registra('errore', 'riepilogo', 'Riepilogo non letto: ' + (errore.message || 'errore sconosciuto'));
   }
 }
 
@@ -2105,6 +2179,7 @@ async function aggiornaMeteo(forza) {
     mostraMeteo();
   } catch {
     // Senza rete resta l'ultimo dato salvato, con la sua ora
+    registra('errore', 'meteo', 'Meteo non aggiornato: controlla la connessione.');
   } finally {
     meteoInCorso = false;
   }
@@ -2678,8 +2753,9 @@ function mostraUltimoBackup() {
     : 'Nessun backup ancora esportato.';
 }
 
-// Esporta: crea il file e apre il foglio di condivisione di iOS
-document.getElementById('btn-esporta').addEventListener('click', async () => {
+// Esporta: crea il file e apre il foglio di condivisione di iOS.
+// Va chiamata direttamente da un tocco, altrimenti iOS non apre la condivisione.
+async function esportaBackup() {
   const adesso = new Date();
   const backup = {
     app: ID_APP,
@@ -2709,10 +2785,63 @@ document.getElementById('btn-esporta').addEventListener('click', async () => {
     localStorage.setItem(CHIAVE_ULTIMO_BACKUP, adesso.toISOString());
     esitoBackup.textContent = 'Backup esportato.';
     mostraUltimoBackup();
+    mostraPromemoriaBackup();
+    registra('info', 'backup', 'Backup esportato.');
   } catch (errore) {
     // AbortError = hai chiuso il foglio di condivisione senza scegliere nulla
-    if (errore.name !== 'AbortError') esitoBackup.textContent = 'Esportazione non riuscita.';
+    if (errore.name !== 'AbortError') {
+      esitoBackup.textContent = 'Esportazione non riuscita.';
+      registra('errore', 'backup', 'Esportazione non riuscita.');
+    }
   }
+}
+
+document.getElementById('btn-esporta').addEventListener('click', esportaBackup);
+
+// ---------- Promemoria del backup in Oggi ----------
+const GIORNI_PROMEMORIA_BACKUP = 7;
+
+function mostraPromemoriaBackup() {
+  const ultimo = localStorage.getItem(CHIAVE_ULTIMO_BACKUP);
+  const giorni = ultimo ? Math.floor((Date.now() - new Date(ultimo)) / 86400000) : null;
+  const elPromemoria = document.getElementById('promemoria-backup');
+  elPromemoria.hidden = giorni !== null && giorni < GIORNI_PROMEMORIA_BACKUP;
+  if (elPromemoria.hidden) return;
+  document.getElementById('promemoria-backup-testo').textContent = giorni === null
+    ? 'Nessun backup dei tuoi dati: esportane uno.'
+    : 'Ultimo backup ' + giorni + ' giorni fa: esportane uno nuovo.';
+}
+
+document.getElementById('btn-backup-oggi').addEventListener('click', esportaBackup);
+
+// ---------- Protezione dell'archivio ----------
+// Chiede a iOS di non cancellare i dati di Routine quando il telefono e a corto di spazio.
+const CHIAVE_PROTEZIONE = 'archivioProtetto';
+
+async function proteggiArchivio() {
+  const elStato = document.getElementById('stato-archivio');
+  if (!navigator.storage || !navigator.storage.persist) {
+    elStato.textContent = 'Protezione dell\u2019archivio non disponibile su questo dispositivo.';
+    return;
+  }
+  try {
+    const protetto = (await navigator.storage.persisted()) || (await navigator.storage.persist());
+    elStato.textContent = protetto
+      ? 'Archivio protetto: iOS non cancella i dati per fare spazio.'
+      : 'Archivio non protetto da iOS: tieni aggiornato il backup.';
+    if (localStorage.getItem(CHIAVE_PROTEZIONE) !== String(protetto)) {
+      localStorage.setItem(CHIAVE_PROTEZIONE, String(protetto));
+      registra('info', 'sistema', protetto ? 'Archivio protetto da iOS.' : 'iOS non ha concesso la protezione dell\u2019archivio.');
+    }
+  } catch {
+    elStato.textContent = '';
+  }
+}
+
+document.getElementById('btn-svuota-registro').addEventListener('click', () => {
+  if (!confirm('Svuotare il registro eventi?')) return;
+  scriviJSON(CHIAVE_REGISTRO, []);
+  mostraRegistro();
 });
 
 // Importa: apre la scelta del file
@@ -2792,6 +2921,9 @@ campoFileBackup.addEventListener('change', async () => {
 });
 
 mostraUltimoBackup();
+mostraPromemoriaBackup();
+mostraRegistro();
+proteggiArchivio();
 
 
 // ===================================================
@@ -2958,17 +3090,21 @@ async function leggiCasella(manuale) {
     for (const f of file) {
       if (fatti.includes(f.name)) { await eliminaDallaCasella(f); continue; }
       let esito = null;
+      let dato = null;
       try {
         const contenuto = await chiamaGitHub('/contents/' + CARTELLA_ARRIVI + '/' + encodeURIComponent(f.name));
-        esito = applicaArrivo(JSON.parse(daBase64(contenuto.content)));
+        dato = JSON.parse(daBase64(contenuto.content));
+        esito = applicaArrivo(dato);
       } catch {
         esito = null;
       }
       if (esito) {
         conteggi[esito] += 1;
         fatti.push(f.name);
+        registra('voce', 'voce', descriviArrivo(dato));
       } else {
         scartati += 1;
+        registra('errore', 'voce', 'Frase non applicata: contenuto non valido (' + f.name + ').');
       }
       await eliminaDallaCasella(f);
     }
@@ -2986,6 +3122,7 @@ async function leggiCasella(manuale) {
         (scartati ? ' ' + scartati + ' non letti.' : ''), false);
     }
   } catch (errore) {
+    registra('errore', 'github', 'Casella non letta: ' + errore.message);
     if (manuale) {
       statoGithub.textContent = '';
       mostraEsitoGitHub(errore.message, true);
@@ -2993,6 +3130,15 @@ async function leggiCasella(manuale) {
   } finally {
     letturaInCorso = false;
   }
+}
+
+// Una riga leggibile per il registro: cosa e arrivato dalla voce
+function descriviArrivo(dato) {
+  if (dato.tipo === 'spesa') {
+    const euro = Number(dato.importoEuro).toFixed(2).replace('.', ',');
+    return 'Spesa ' + euro + ' \u20ac, ' + (dato.categoria || 'altro') + (dato.nota ? ' (' + dato.nota + ')' : '');
+  }
+  return 'Impegno: ' + (dato.titolo || '') + (dato.data ? ', ' + dato.data : '') + (dato.ora ? ' ' + dato.ora : '');
 }
 
 async function eliminaDallaCasella(file) {
