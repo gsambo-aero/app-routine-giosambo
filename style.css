@@ -1364,3 +1364,104 @@ main {
 #velo-salvati .lavoro-cuore .ico { stroke: var(--testo-terziario); }
 #velo-salvati .lavoro-cuore.salvato .ico { stroke: #f5a524; fill: #f5a524; }
 #velo-salvati .lavoro-logo { color: #f5a524; }
+
+/* ---------- Pesca ---------- */
+.sottoscheda-pesca {
+  padding: 9px 2px;
+  font-size: 13.5px;
+  font-family: inherit;
+  color: var(--testo-secondario);
+  background: none;
+  border: none;
+  border-radius: 9px;
+  cursor: pointer;
+}
+.sottoscheda-pesca.attiva {
+  color: var(--su-accento);
+  background: var(--accento);
+  font-weight: 600;
+}
+.pesca-mose {
+  margin: 10px 16px 0;
+  padding: 10px 13px;
+  font-size: 13.5px;
+  color: #fbbf24;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  border-radius: 12px;
+}
+.pesca-indici {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 12px 16px 0;
+}
+.pesca-indice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 12px 14px;
+  font-family: inherit;
+  color: var(--testo);
+  text-align: left;
+  background: var(--superficie);
+  border: 1px solid var(--bordo);
+  border-radius: 16px;
+  cursor: pointer;
+}
+.pesca-indice.attivo { border-color: var(--accento); }
+.pesca-numero {
+  font-family: var(--mono);
+  font-size: 36px;
+  line-height: 1.1;
+  color: var(--accento);
+}
+.pesca-indice.basso .pesca-numero { color: var(--testo-secondario); }
+.pesca-sotto { font-size: 12px; color: var(--testo-secondario); }
+.pesca-svg { display: block; width: 100%; height: auto; }
+.pesca-finestra { fill: var(--accento); opacity: 0.16; }
+.pesca-zero { stroke: var(--bordo); stroke-dasharray: 3 4; }
+.pesca-curva { fill: none; stroke: var(--accento); stroke-width: 2.2; stroke-linejoin: round; }
+.pesca-adesso { stroke: var(--testo); stroke-width: 1; opacity: 0.55; }
+.pesca-punto { fill: var(--testo); }
+.pesca-etichetta { font-family: var(--mono); font-size: 9px; fill: var(--testo); text-anchor: middle; }
+.pesca-asse { font-family: var(--mono); font-size: 9px; fill: var(--testo-terziario); text-anchor: middle; }
+.pesca-nota { margin: -4px 0 0; font-size: 13px; }
+.pesca-perche { display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+.pesca-motivo { display: flex; justify-content: space-between; gap: 10px; }
+.pesca-motivo.neutro, .pesca-motivo.contro { color: var(--testo-secondario); }
+.pesca-segno { font-family: var(--mono); color: var(--accento); flex: none; }
+.pesca-motivo.neutro .pesca-segno { color: var(--testo-terziario); }
+.pesca-motivo.contro .pesca-segno { color: var(--pericolo); }
+.pesca-giorni { display: flex; flex-direction: column; gap: 7px; font-size: 14px; }
+.pesca-giorno { display: flex; justify-content: space-between; gap: 10px; }
+.pesca-giorno-valore { font-family: var(--mono); font-size: 13px; }
+.pesca-giorno-valore.avviso { color: #fbbf24; }
+.pesca-azioni { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 12px 16px 0; }
+.pesca-fonti { margin: 10px 20px 0; font-size: 11.5px; }
+.campo-doppio.uguali { grid-template-columns: 1fr 1fr; }
+.segmenti.due { grid-template-columns: 1fr 1fr; }
+.segmenti.tre { grid-template-columns: repeat(3, 1fr); }
+.campo select {
+  width: 100%;
+  padding: 11px 12px;
+  font-size: 16px;
+  font-family: inherit;
+  color: var(--testo);
+  background: var(--superficie-2);
+  border: 1px solid var(--bordo);
+  border-radius: 10px;
+}
+.diario-elenco { display: flex; flex-direction: column; }
+.diario-riga {
+  padding: 11px 0;
+  font-family: inherit;
+  color: var(--testo);
+  text-align: left;
+  background: none;
+  border: none;
+  border-top: 1px solid var(--bordo);
+  cursor: pointer;
+}
+.diario-riga:first-child { border-top: none; }

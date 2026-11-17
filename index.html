@@ -482,7 +482,53 @@
           <button type="button" class="btn-ingranaggio" data-impostazioni aria-label="Impostazioni"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h9"/><path d="M19 6h1"/><circle cx="16" cy="6" r="2.5"/><path d="M4 12h3"/><path d="M13 12h7"/><circle cx="10" cy="12" r="2.5"/><path d="M4 18h11"/><circle cx="18" cy="18" r="2.5"/></svg></button>
         </div>
       </header>
-      <div class="vuoto">Marea, corrente, pressione e diario delle uscite. In costruzione.</div>
+      <div class="sottoschede">
+        <button type="button" class="sottoscheda-pesca" data-spot="sabbioni">Punta Sabbioni</button>
+        <button type="button" class="sottoscheda-pesca" data-spot="jesolo">Faro Jesolo</button>
+        <button type="button" class="sottoscheda-pesca" data-spot="cortellazzo">Cortellazzo</button>
+      </div>
+      <div id="pesca-mose" class="pesca-mose" hidden></div>
+
+      <!-- Indice di oggi per specie (il tocco sceglie quale mostrare nel grafico) -->
+      <div class="pesca-indici">
+        <button type="button" class="pesca-indice" data-specie="spigola">
+          <span class="etichetta">Spigola</span>
+          <span id="pesca-num-spigola" class="pesca-numero">-</span>
+          <span id="pesca-sotto-spigola" class="pesca-sotto"></span>
+        </button>
+        <button type="button" class="pesca-indice" data-specie="serra">
+          <span class="etichetta">Serra</span>
+          <span id="pesca-num-serra" class="pesca-numero">-</span>
+          <span id="pesca-sotto-serra" class="pesca-sotto"></span>
+        </button>
+      </div>
+
+      <div class="card">
+        <div class="hero-testa">
+          <span id="pesca-marea-titolo" class="etichetta">Marea</span>
+          <span class="etichetta">cm su ZMPS</span>
+        </div>
+        <div id="pesca-grafico"></div>
+        <p id="pesca-marea-nota" class="testo-sec pesca-nota"></p>
+      </div>
+
+      <div class="card">
+        <span id="pesca-perche-titolo" class="etichetta">Perché</span>
+        <div id="pesca-perche" class="pesca-perche"></div>
+        <div id="pesca-strumenti"></div>
+      </div>
+
+      <div class="card">
+        <span class="etichetta">Prossimi giorni</span>
+        <div id="pesca-giorni" class="pesca-giorni"></div>
+      </div>
+
+      <div class="pesca-azioni">
+        <button type="button" id="btn-registra-uscita" class="btn-primario">Registra uscita</button>
+        <button type="button" id="btn-apri-diario" class="btn-secondario">Diario</button>
+      </div>
+      <p id="pesca-dati-nota" class="nota pesca-fonti"></p>
+      <p class="nota pesca-fonti">Marea astronomica: Comune di Venezia, Centro Maree (CC BY). Meteo e mare: Open-Meteo (CC BY 4.0). Indice da tarare con il diario.</p>
     </section>
 
     <!-- ========== Vista Impostazioni (si apre con l'ingranaggio) ========== -->
@@ -611,6 +657,71 @@
       <div id="salvati-elenco" class="link-elenco"></div>
       <p id="salvati-vuoto" class="nota" hidden>Nessun annuncio salvato.</p>
       <button type="button" id="btn-salvati-chiudi" class="btn-testo">Chiudi</button>
+    </div>
+  </div>
+
+  <!-- Pesca: registra o modifica un'uscita -->
+  <div id="velo-uscita" class="velo" hidden>
+    <form id="form-uscita" class="foglio">
+      <h3 id="uscita-titolo">Nuova uscita</h3>
+      <label class="campo">
+        <span>Spot</span>
+        <select id="uscita-spot">
+          <option value="sabbioni">Punta Sabbioni</option>
+          <option value="jesolo">Faro di Jesolo</option>
+          <option value="cortellazzo">Cortellazzo</option>
+        </select>
+      </label>
+      <label class="campo">
+        <span>Giorno</span>
+        <input type="date" id="uscita-data">
+      </label>
+      <div class="campo-doppio uguali">
+        <label class="campo"><span>Dalle</span><input type="time" id="uscita-dalle"></label>
+        <label class="campo"><span>Alle</span><input type="time" id="uscita-alle"></label>
+      </div>
+      <div class="campo-doppio uguali">
+        <label class="campo"><span>Spigole</span><input type="number" id="uscita-spigole" min="0" max="99" inputmode="numeric"></label>
+        <label class="campo"><span>Serra</span><input type="number" id="uscita-serra" min="0" max="99" inputmode="numeric"></label>
+      </div>
+      <div class="campo">
+        <span>Mangianze</span>
+        <div class="segmenti due">
+          <label><input type="radio" name="uscita-mangianze" value="no"><span>No</span></label>
+          <label><input type="radio" name="uscita-mangianze" value="si"><span>Sì</span></label>
+        </div>
+      </div>
+      <div class="campo">
+        <span>Acqua</span>
+        <div class="segmenti tre">
+          <label><input type="radio" name="uscita-acqua" value="limpida"><span>Limpida</span></label>
+          <label><input type="radio" name="uscita-acqua" value="velata"><span>Velata</span></label>
+          <label><input type="radio" name="uscita-acqua" value="torbida"><span>Torbida</span></label>
+        </div>
+      </div>
+      <label class="campo">
+        <span>Artificiale</span>
+        <input type="text" id="uscita-artificiale" maxlength="60" autocomplete="off" placeholder="Opzionale">
+      </label>
+      <label class="campo">
+        <span>Nota</span>
+        <input type="text" id="uscita-nota" maxlength="200" autocomplete="off" placeholder="Opzionale">
+      </label>
+      <p id="uscita-esito" class="esito esito-errore"></p>
+      <button type="submit" class="btn-primario">Salva</button>
+      <button type="button" id="btn-uscita-elimina" class="btn-secondario btn-rosso" hidden>Elimina</button>
+      <button type="button" id="btn-uscita-chiudi" class="btn-testo">Annulla</button>
+    </form>
+  </div>
+
+  <!-- Pesca: diario delle uscite -->
+  <div id="velo-diario" class="velo" hidden>
+    <div class="foglio">
+      <h3>Diario delle uscite</h3>
+      <span class="testo-sec">Con ogni uscita Routine salva le condizioni: servono a tarare l'indice.</span>
+      <div id="diario-elenco" class="diario-elenco"></div>
+      <p id="diario-vuoto" class="nota" hidden>Ancora nessuna uscita.</p>
+      <button type="button" id="btn-diario-chiudi" class="btn-testo">Chiudi</button>
     </div>
   </div>
 

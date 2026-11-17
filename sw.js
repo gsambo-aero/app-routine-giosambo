@@ -2,8 +2,8 @@
 // Strategia: prova prima la rete (così gli aggiornamenti arrivano subito),
 // se non risponde entro pochi secondi usa la copia salvata.
 
-const CACHE = 'routine-cache-v10';
-const FILE_APP = ['./', './index.html', './style.css', './app.js'];
+const CACHE = 'routine-cache-v11';
+const FILE_APP = ['./', './index.html', './style.css', './app.js', './dati/maree-venezia.json'];
 const ATTESA_RETE_MS = 3000;
 
 // Installazione: salva subito una copia dei file principali

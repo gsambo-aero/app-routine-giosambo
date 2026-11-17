@@ -37,7 +37,7 @@ const CHIAVE_REGISTRO = 'registroEventi';
 const MAX_REGISTRO = 50;
 const FONTI_REGISTRO = {
   voce: 'Voce', github: 'GitHub', intervals: 'Intervals.icu', riepilogo: 'Riepilogo',
-  meteo: 'Meteo', backup: 'Backup', sistema: 'Sistema', hevy: 'Hevy', lavoro: 'Lavoro'
+  meteo: 'Meteo', backup: 'Backup', sistema: 'Sistema', hevy: 'Hevy', lavoro: 'Lavoro', pesca: 'Pesca'
 };
 
 // tipo: 'voce' (arrivo applicato), 'errore', 'info'
@@ -278,6 +278,8 @@ function mostraVista(nome) {
   if (nome !== 'impostazioni') document.body.dataset.vista = nome;
 
   if (nome === 'salute') mostraSottovista(sottovistaAttiva);
+  // La scheda Pesca si calcola quando la apri (rimandato: all'avvio il suo codice e piu in basso)
+  if (nome === 'pesca' && typeof mostraPesca === 'function') setTimeout(() => mostraPesca(), 0);
 
   // Le impostazioni non sono una scheda della barra: non diventano la vista da riaprire
   if (nome !== 'impostazioni') {
@@ -2782,7 +2784,8 @@ async function esportaBackup() {
       allenamenti: leggiJSON(CHIAVE_ALLENAMENTI, []),
       svegliePreferite: leggiJSON(CHIAVE_PREFERITE, []),
       spese: leggiSpese(),
-      agenda: leggiAgenda()
+      agenda: leggiAgenda(),
+      diarioPesca: leggiJSON('diarioPesca', [])
     }
   };
   const nomeFile = 'routine-backup-' + dataPerNomeFile(adesso) + '.json';
@@ -2879,6 +2882,7 @@ campoFileBackup.addEventListener('change', async () => {
     const daBackupPref = Array.isArray(backup.dati.svegliePreferite) ? backup.dati.svegliePreferite : [];
     const daBackupSpese = Array.isArray(backup.dati.spese) ? backup.dati.spese : [];
     const daBackupAgenda = Array.isArray(backup.dati.agenda) ? backup.dati.agenda : [];
+    const daBackupDiario = Array.isArray(backup.dati.diarioPesca) ? backup.dati.diarioPesca : [];
 
     // Allenamenti: aggiunge solo quelli validi e non già presenti
     const allenamenti = leggiJSON(CHIAVE_ALLENAMENTI, []);
@@ -2911,23 +2915,29 @@ campoFileBackup.addEventListener('change', async () => {
       v && v.id && typeof v.titolo === 'string' && !idAgenda.has(v.id)
     );
 
-    if (nuoviAll.length === 0 && nuovePref.length === 0 && nuoveSpese.length === 0 && nuoveVoci.length === 0) {
+    // Diario della pesca: stesso criterio
+    const diarioPesca = leggiJSON('diarioPesca', []);
+    const idUscite = new Set(diarioPesca.map(u => u.id));
+    const nuoveUscite = daBackupDiario.filter(u => u && u.id && u.spot && u.inizio && !idUscite.has(u.id));
+
+    if (nuoviAll.length === 0 && nuovePref.length === 0 && nuoveSpese.length === 0 && nuoveVoci.length === 0 && nuoveUscite.length === 0) {
       esitoBackup.textContent = 'Niente di nuovo nel backup.';
       return;
     }
 
     const domanda = 'Importare dal backup del ' + formattaData(backup.esportatoIl) + ': ' +
       nuoviAll.length + ' allenamenti, ' + nuovePref.length + ' sveglie preferite, ' +
-      nuoveSpese.length + ' spese e ' + nuoveVoci.length + ' voci di agenda?';
+      nuoveSpese.length + ' spese, ' + nuoveVoci.length + ' voci di agenda e ' + nuoveUscite.length + ' uscite di pesca?';
     if (!confirm(domanda)) return;
 
     scriviJSON(CHIAVE_ALLENAMENTI, allenamenti.concat(nuoviAll));
     scriviJSON(CHIAVE_PREFERITE, preferite.concat(nuovePref));
     scriviJSON(CHIAVE_SPESE, spese.concat(nuoveSpese));
     scriviJSON(CHIAVE_AGENDA, agenda.concat(nuoveVoci));
+    scriviJSON('diarioPesca', diarioPesca.concat(nuoveUscite));
     esitoBackup.textContent = 'Importati ' + nuoviAll.length + ' allenamenti, ' +
-      nuovePref.length + ' preferite, ' + nuoveSpese.length + ' spese e ' +
-      nuoveVoci.length + ' voci di agenda.';
+      nuovePref.length + ' preferite, ' + nuoveSpese.length + ' spese, ' +
+      nuoveVoci.length + ' voci di agenda e ' + nuoveUscite.length + ' uscite di pesca.';
     aggiornaPalestra();
     mostraPreferite();
     mostraSpese();
@@ -3959,6 +3969,803 @@ document.addEventListener('visibilitychange', () => {
   inviaSalvati();
   mostraLavoro();
 });
+
+
+// ===================================================
+// Pesca: indice per spigola e serra in tre spot sul mare
+// ===================================================
+// Marea: tavole astronomiche del Comune di Venezia (estremi in dati/maree-venezia.json,
+// curva tra un estremo e l'altro a coseno). Meteo e mare: Open-Meteo dal vivo.
+// Sole e luna: calcolati qui. MOSE: dal riepilogo mattutino (campo "mose").
+// L'indice e una media pesata di fattori 0-1, per ogni quarto d'ora, da tarare con il diario.
+
+const SPOT_PESCA = [
+  { id: 'sabbioni', nome: 'Punta Sabbioni', breve: 'Punta Sabbioni', lat: 45.437, lon: 12.421,
+    serie: 'puntaSalute', ritardoMin: -49, marea: 'Lido Diga Sud', mose: true, costa: false, foce: false },
+  { id: 'jesolo', nome: 'Faro di Jesolo', breve: 'Faro Jesolo', lat: 45.483, lon: 12.581,
+    serie: 'piattaforma', ritardoMin: 0, marea: 'Piattaforma CNR', mose: false, costa: true, foce: false },
+  { id: 'cortellazzo', nome: 'Cortellazzo', breve: 'Cortellazzo', lat: 45.535, lon: 12.728,
+    serie: 'piattaforma', ritardoMin: 0, marea: 'Piattaforma CNR', mose: false, costa: true, foce: true }
+];
+const CHIAVE_SPOT_PESCA = 'spotPesca';
+const CHIAVE_SPECIE_PESCA = 'speciePesca';
+const CHIAVE_METEO_PESCA = 'meteoPesca';
+const CHIAVE_DIARIO_PESCA = 'diarioPesca';
+const PAUSA_METEO_PESCA_MS = 30 * 60 * 1000;
+const QUARTO_MS = 15 * 60000;
+const ORA_MS = 3600000;
+const SOGLIA_FINESTRA = 65;
+// Pesi iniziali (dal report di ricerca): solidi luce e temperatura, da tarare marea, pressione, luna
+const PESI_PESCA = {
+  spigola: { marea: 30, luce: 20, mare: 15, vento: 10, pressione: 10, temp: 10, luna: 5 },
+  serra: { luce: 25, marea: 20, mare: 20, foraggio: 15, vento: 10, pressione: 5, luna: 5 }
+};
+// Temperatura tipica del mare in Alto Adriatico, se Open-Meteo non la da
+const SST_MESE = [10, 9, 10, 13, 18, 23, 26, 26, 23, 19, 15, 12];
+const NOMI_VENTO = [
+  [22.5, 'N', 'tramontana'], [67.5, 'NE', 'bora'], [112.5, 'E', 'levante'], [157.5, 'SE', 'scirocco'],
+  [202.5, 'S', 'ostro'], [247.5, 'SW', 'libeccio'], [292.5, 'W', 'ponente'], [337.5, 'NW', 'maestrale'], [360, 'N', 'tramontana']
+];
+
+let mareeVenezia = null;
+let spotPesca = localStorage.getItem(CHIAVE_SPOT_PESCA) || 'sabbioni';
+let speciePesca = localStorage.getItem(CHIAVE_SPECIE_PESCA) || 'spigola';
+let uscitaInModifica = null;
+
+function spotDaId(id) {
+  return SPOT_PESCA.find(s => s.id === id) || SPOT_PESCA[0];
+}
+
+function numIt(n, decimali = 1) {
+  return Number(n).toFixed(decimali).replace('.', ',');
+}
+
+function conSegno(n, decimali = 0) {
+  return (n > 0 ? '+' : '') + numIt(n, decimali);
+}
+
+// ---------- Marea ----------
+async function caricaMaree() {
+  if (mareeVenezia) return mareeVenezia;
+  try {
+    const r = await fetch('dati/maree-venezia.json');
+    if (!r.ok) throw new Error('file non trovato');
+    mareeVenezia = await r.json();
+  } catch (errore) {
+    registra('errore', 'pesca', 'Tavole di marea non caricate: ' + (errore.message || 'errore'));
+  }
+  return mareeVenezia;
+}
+
+const cacheEstremi = {};
+function estremiSpot(spot) {
+  if (cacheEstremi[spot.id]) return cacheEstremi[spot.id];
+  const serie = mareeVenezia && mareeVenezia[spot.serie];
+  if (!Array.isArray(serie)) return [];
+  cacheEstremi[spot.id] = serie.map(([minuti, cm]) => ({ t: (minuti + spot.ritardoMin) * 60000, h: cm }));
+  return cacheEstremi[spot.id];
+}
+
+// Livello e velocita (cm/h) a un istante, interpolando a coseno tra due estremi
+function mareaIn(estremi, t) {
+  let lo = 0, hi = estremi.length - 1;
+  if (hi < 1 || t < estremi[0].t || t >= estremi[hi].t) return null;
+  while (hi - lo > 1) {
+    const mezzo = (lo + hi) >> 1;
+    if (estremi[mezzo].t <= t) lo = mezzo; else hi = mezzo;
+  }
+  const a = estremi[lo], b = estremi[hi];
+  const durata = b.t - a.t;
+  const x = (t - a.t) / durata;
+  return {
+    h: a.h + (b.h - a.h) * (1 - Math.cos(Math.PI * x)) / 2,
+    v: (b.h - a.h) * Math.PI / 2 * Math.sin(Math.PI * x) / (durata / ORA_MS),
+    montante: b.h > a.h, daPrima: t - a.t, aDopo: b.t - t, prima: a, dopo: b
+  };
+}
+
+// Velocita "forte" di riferimento: 90 percentile su un mese attorno al giorno
+function velocitaRiferimento(estremi, t) {
+  const valori = [];
+  for (let s = t - 15 * 864e5; s < t + 15 * 864e5; s += QUARTO_MS) {
+    const m = mareaIn(estremi, s);
+    if (m) valori.push(Math.abs(m.v));
+  }
+  valori.sort((a, b) => a - b);
+  return valori.length ? Math.max(5, valori[Math.floor(valori.length * 0.9)]) : 20;
+}
+
+// ---------- Sole e luna ----------
+function altezzaSole(t, lat, lon) {
+  const d = t / 864e5 - 10957.5; // giorni dal 1 gennaio 2000, 12:00 UTC
+  const rad = Math.PI / 180;
+  const g = (357.529 + 0.98560028 * d) * rad;
+  const q = 280.459 + 0.98564736 * d;
+  const l = (q + 1.915 * Math.sin(g) + 0.020 * Math.sin(2 * g)) * rad;
+  const e = (23.439 - 0.00000036 * d) * rad;
+  const dec = Math.asin(Math.sin(e) * Math.sin(l));
+  const ra = Math.atan2(Math.cos(e) * Math.sin(l), Math.cos(l));
+  const gmst = ((18.697374558 + 24.06570982441908 * d) % 24 + 24) % 24;
+  const h = (gmst * 15 + lon) * rad - ra;
+  const la = lat * rad;
+  return Math.asin(Math.sin(la) * Math.sin(dec) + Math.cos(la) * Math.cos(dec) * Math.cos(h)) / rad;
+}
+
+const cacheSole = {};
+function soleDelGiorno(t, spot) {
+  const inizio = new Date(t); inizio.setHours(0, 0, 0, 0);
+  const chiave = spot.id + inizio.getTime();
+  if (cacheSole[chiave]) return cacheSole[chiave];
+  let alba = null, tramonto = null, prec = altezzaSole(inizio.getTime(), spot.lat, spot.lon);
+  for (let s = inizio.getTime() + 120000; s <= inizio.getTime() + 864e5; s += 120000) {
+    const a = altezzaSole(s, spot.lat, spot.lon);
+    if (prec < -0.833 && a >= -0.833 && alba === null) alba = s;
+    if (prec >= -0.833 && a < -0.833) tramonto = s;
+    prec = a;
+  }
+  cacheSole[chiave] = { alba, tramonto };
+  return cacheSole[chiave];
+}
+
+function lunaIn(t) {
+  const periodo = 29.530588853;
+  const riferimento = Date.UTC(2000, 0, 6, 18, 14) / 864e5;
+  const eta = ((t / 864e5 - riferimento) % periodo + periodo) % periodo;
+  return { illuminata: (1 - Math.cos(2 * Math.PI * eta / periodo)) / 2, crescente: eta < periodo / 2 };
+}
+
+// ---------- Meteo e mare (Open-Meteo) ----------
+async function meteoSpot(spot, forza) {
+  const cache = leggiJSON(CHIAVE_METEO_PESCA, {});
+  const vecchio = cache[spot.id];
+  if (!forza && vecchio && Date.now() - vecchio.quando < PAUSA_METEO_PESCA_MS) return vecchio;
+  if (!navigator.onLine) return vecchio || null;
+  try {
+    const base = 'latitude=' + spot.lat + '&longitude=' + spot.lon + '&timeformat=unixtime&timezone=GMT';
+    const [m, s] = await Promise.all([
+      fetch('https://api.open-meteo.com/v1/forecast?' + base +
+        '&hourly=pressure_msl,wind_speed_10m,wind_direction_10m,wind_gusts_10m,cloud_cover,precipitation&past_days=3&forecast_days=3')
+        .then(r => { if (!r.ok) throw new Error('meteo ' + r.status); return r.json(); }),
+      fetch('https://marine-api.open-meteo.com/v1/marine?' + base +
+        '&hourly=wave_height,sea_surface_temperature&past_days=1&forecast_days=3&cell_selection=sea')
+        .then(r => (r.ok ? r.json() : null)).catch(() => null)
+    ]);
+    const o = m.hourly;
+    const voce = {
+      quando: Date.now(), ore: o.time.map(x => x * 1000), pressione: o.pressure_msl, vento: o.wind_speed_10m,
+      dirVento: o.wind_direction_10m, raffiche: o.wind_gusts_10m, nuvole: o.cloud_cover, pioggia: o.precipitation,
+      mare: s && s.hourly ? { ore: s.hourly.time.map(x => x * 1000), onda: s.hourly.wave_height, sst: s.hourly.sea_surface_temperature } : null
+    };
+    cache[spot.id] = voce;
+    scriviJSON(CHIAVE_METEO_PESCA, cache);
+    return voce;
+  } catch (errore) {
+    registra('errore', 'pesca', 'Meteo per la pesca non scaricato: ' + (errore.message || 'errore sconosciuto'));
+    return vecchio || null;
+  }
+}
+
+// Valore orario interpolato all'istante t (null se fuori dai dati)
+function valoreA(ore, valori, t) {
+  if (!ore || !valori || ore.length < 2 || t < ore[0] || t > ore[ore.length - 1]) return null;
+  const i = Math.min(ore.length - 2, Math.floor((t - ore[0]) / ORA_MS));
+  const a = valori[i], b = valori[i + 1];
+  if (a == null) return b ?? null;
+  if (b == null) return a;
+  return a + (b - a) * Math.max(0, Math.min(1, (t - ore[i]) / ORA_MS));
+}
+
+function pioggia72(meteo, t) {
+  if (!meteo) return null;
+  let somma = 0, trovate = 0;
+  meteo.ore.forEach((o, i) => {
+    if (o <= t && o > t - 72 * ORA_MS && meteo.pioggia[i] != null) { somma += meteo.pioggia[i]; trovate += 1; }
+  });
+  return trovate ? somma : null;
+}
+
+// ---------- MOSE (dal riepilogo mattutino) ----------
+function chiusureMose() {
+  const r = leggiJSON(CHIAVE_RIEPILOGO, null);
+  if (!r || !Array.isArray(r.mose) || !r.generato || Date.now() - new Date(r.generato) > 3 * 864e5) return [];
+  return r.mose.filter(c => c && c.inizio && (!Array.isArray(c.bocche) || c.bocche.some(b => /lido|treporti/i.test(b))))
+    .map(c => {
+      const inizio = new Date(c.inizio).getTime();
+      return { inizio, fine: c.fine ? new Date(c.fine).getTime() : inizio + 5 * ORA_MS };
+    })
+    .filter(c => isFinite(c.inizio));
+}
+
+function moseChiusoIn(t, chiusure) {
+  return chiusure.some(c => t >= c.inizio && t <= c.fine);
+}
+
+// ---------- Fattori e indice ----------
+function mangianzeRecenti(t) {
+  return leggiJSON(CHIAVE_DIARIO_PESCA, []).some(u => u.mangianze && t - new Date(u.inizio) < 2 * 864e5 && t >= new Date(u.inizio));
+}
+
+function nomeVento(gradi) {
+  const voce = NOMI_VENTO.find(([limite]) => gradi < limite) || NOMI_VENTO[0];
+  return { sigla: voce[1], nome: voce[2] };
+}
+
+function fattoriPesca(spot, t, ctx) {
+  const f = { spigola: {}, serra: {} };
+  const info = {};
+  const met = ctx.meteo;
+  const mare = met && met.mare;
+
+  // Marea: forza della corrente (70%) e fase preferita dello spot (30%)
+  const m = mareaIn(ctx.estremi, t);
+  info.marea = m;
+  if (m) {
+    const forza = Math.min(1, Math.abs(m.v) / ctx.vRif);
+    const stanca = m.daPrima < 30 * 60000 || m.aDopo < 30 * 60000;
+    let fase;
+    if (stanca) fase = 0.2;
+    else if (spot.foce) fase = m.montante ? 0.5 : 1;
+    else fase = (m.montante && m.aDopo <= 2 * ORA_MS) || (!m.montante && m.daPrima <= 2 * ORA_MS) ? 1 : 0.6;
+    info.forza = forza; info.stanca = stanca;
+    f.spigola.marea = f.serra.marea = 0.7 * forza + 0.3 * fase;
+  } else {
+    f.spigola.marea = f.serra.marea = 0.5;
+  }
+
+  // Luce: alba e tramonto, notte, giorno (meglio se coperto)
+  const sole = soleDelGiorno(t, spot);
+  const altezza = altezzaSole(t, spot.lat, spot.lon);
+  const nuvole = met ? valoreA(met.ore, met.nuvole, t) : null;
+  const vicinoA = [sole.alba, sole.tramonto].filter(x => x !== null).map(x => Math.abs(t - x));
+  info.crepuscolo = vicinoA.length && Math.min(...vicinoA) <= ORA_MS;
+  info.notte = altezza < -6;
+  info.sole = sole; info.nuvole = nuvole;
+  f.spigola.luce = f.serra.luce = info.crepuscolo ? 1 : info.notte ? 0.7 : altezza < 0 ? 0.85 : (nuvole !== null && nuvole > 70 ? 0.6 : 0.4);
+
+  // Mare: la spigola ama la scaduta, il serra il mare calmo
+  const hs = mare ? valoreA(mare.ore, mare.onda, t) : null;
+  const hs6 = mare ? valoreA(mare.ore, mare.onda, t - 6 * ORA_MS) : null;
+  info.hs = hs; info.hsCalo = hs !== null && hs6 !== null ? hs - hs6 : null;
+  if (hs === null) {
+    f.spigola.mare = 0.6; f.serra.mare = 0.6;
+  } else {
+    const inCalo = info.hsCalo !== null && info.hsCalo <= -0.05;
+    const inAumento = info.hsCalo !== null && info.hsCalo >= 0.1;
+    if (hs > 1.5 && inAumento) f.spigola.mare = 0.2;
+    else if (hs > 1.2) f.spigola.mare = 0.5;
+    else if (hs >= 0.4) f.spigola.mare = inCalo ? 1 : 0.7;
+    else if (hs >= 0.25) f.spigola.mare = 0.55;
+    else f.spigola.mare = 0.4;
+    f.serra.mare = hs <= 0.5 ? 1 : Math.max(0, 1 - (hs - 0.5));
+  }
+  if (spot.id === 'sabbioni' && hs !== null) {
+    // In bocca di porto l'onda arriva smorzata: conta meno
+    f.spigola.mare = 0.5 * f.spigola.mare + 0.35;
+  }
+
+  // Vento
+  const vento = met ? valoreA(met.ore, met.vento, t) : null;
+  const dir = met ? valoreA(met.ore, met.dirVento, t) : null;
+  info.vento = vento; info.dirVento = dir;
+  if (vento === null) {
+    f.spigola.vento = f.serra.vento = 0.6;
+  } else {
+    const daMare = dir !== null && dir >= 80 && dir <= 200; // levante, scirocco, ostro sul litorale
+    const daTerra = dir !== null && (dir <= 70 || dir >= 300); // bora e tramontana
+    if (spot.costa) {
+      if (vento > 35) f.spigola.vento = 0.3;
+      else if (daMare && vento >= 10) f.spigola.vento = 0.9;
+      else if (daTerra && vento > 25) f.spigola.vento = 0.4;
+      else if (vento < 10) f.spigola.vento = 0.6;
+      else f.spigola.vento = 0.7;
+    } else {
+      f.spigola.vento = vento < 20 ? 1 : vento <= 35 ? 0.6 : 0.2;
+    }
+    f.serra.vento = vento < 15 ? 1 : vento <= 30 ? 0.6 : 0.2;
+  }
+
+  // Pressione: conta la tendenza (calo prima del peggioramento)
+  const p = met ? valoreA(met.ore, met.pressione, t) : null;
+  const p3 = met ? valoreA(met.ore, met.pressione, t - 3 * ORA_MS) : null;
+  const p24 = met ? valoreA(met.ore, met.pressione, t - 24 * ORA_MS) : null;
+  info.pressione = p;
+  info.d3 = p !== null && p3 !== null ? p - p3 : null;
+  info.d24 = p !== null && p24 !== null ? p - p24 : null;
+  let fp = 0.6;
+  if (info.d3 !== null) {
+    if (info.d3 <= -1 && info.d3 >= -4) fp = 1;
+    else if (info.d3 < -4) fp = 0.7;
+    else if (info.d3 > 2 || (info.d24 !== null && info.d24 > 8)) fp = 0.3;
+    else if (Math.abs(info.d3) < 1) fp = 0.6;
+    else fp = 0.5;
+  }
+  f.spigola.pressione = f.serra.pressione = fp;
+
+  // Temperatura dell'acqua
+  let sst = mare ? valoreA(mare.ore, mare.sst, t) : null;
+  info.sstStimata = sst === null;
+  if (sst === null) sst = SST_MESE[new Date(t).getMonth()];
+  info.sst = sst;
+  f.spigola.temp = sst >= 12 && sst <= 24 ? 1 : (sst >= 10 && sst <= 26 ? 0.7 : 0.4);
+
+  // Luna: per la spigola conta di notte (meglio buio o coperto)
+  const luna = lunaIn(t);
+  info.luna = luna;
+  if (!info.notte) f.spigola.luna = 1;
+  else if (luna.illuminata < 0.3 || (nuvole !== null && nuvole > 70)) f.spigola.luna = 1;
+  else if (luna.illuminata > 0.7 && (nuvole === null || nuvole < 30)) f.spigola.luna = 0.6;
+  else f.spigola.luna = 0.8;
+  f.serra.luna = 1;
+
+  // Pesce foraggio: lo dice solo il diario
+  info.mangianze = ctx.mangianze;
+  f.serra.foraggio = ctx.mangianze ? 1 : 0.5;
+
+  // Moltiplicatori: stagione, MOSE, sicurezza, piena del Piave
+  const mese = new Date(t).getMonth();
+  let mSpigola = (mese === 11 || mese <= 2) ? 1.1 : 1; // inverno: spigole grandi vicino a bocche e dighe
+  let mSerra = sst < 15 ? 0.1 : sst < 20 ? 0.1 + 0.9 * (sst - 15) / 5 : 1;
+  const raffiche = met ? valoreA(met.ore, met.raffiche, t) : null;
+  info.mose = spot.mose && moseChiusoIn(t, ctx.mose);
+  if (info.mose || (hs !== null && hs > 2.2) || (raffiche !== null && raffiche > 60)) { mSpigola = 0; mSerra = 0; }
+  if (spot.foce) {
+    const pioggia = pioggia72(met, t);
+    info.pioggia72 = pioggia;
+    if (pioggia !== null && pioggia > 50) { mSpigola *= 0.4; mSerra *= 0.6; }
+    else if (pioggia !== null && pioggia > 15) { mSpigola *= 1.05; mSerra *= 0.8; }
+  }
+  return { f, info, molt: { spigola: mSpigola, serra: mSerra } };
+}
+
+function indiceDa(fattori, specie) {
+  const pesi = PESI_PESCA[specie];
+  let somma = 0, totale = 0;
+  Object.entries(pesi).forEach(([nome, peso]) => {
+    somma += peso * (fattori.f[specie][nome] ?? 0.5);
+    totale += peso;
+  });
+  // Media pesata riscalata: 0,3 (tutto contro) vale 0, 0,9 (quasi tutto a favore) vale 100,
+  // cosi le giornate qualunque stanno attorno a 40-50 e le finestre buone si distinguono
+  const media = somma / totale;
+  return Math.max(0, Math.min(100, Math.round(100 * fattori.molt[specie] * (media - 0.3) / 0.6)));
+}
+
+// Calcolo per tre giorni (da oggi), ogni quarto d'ora, con media mobile di un'ora
+function calcolaPesca(spot, meteo) {
+  const estremi = estremiSpot(spot);
+  const oggi = new Date(); oggi.setHours(0, 0, 0, 0);
+  const inizio = oggi.getTime();
+  const ctx = {
+    estremi, meteo, mose: chiusureMose(), mangianze: mangianzeRecenti(Date.now()),
+    vRif: velocitaRiferimento(estremi, Date.now())
+  };
+  const punti = [];
+  for (let t = inizio; t < inizio + 3 * 864e5; t += QUARTO_MS) {
+    const fattori = fattoriPesca(spot, t, ctx);
+    punti.push({ t, fattori, grezzo: { spigola: indiceDa(fattori, 'spigola'), serra: indiceDa(fattori, 'serra') } });
+  }
+  punti.forEach((p, i) => {
+    p.indice = {};
+    ['spigola', 'serra'].forEach(sp => {
+      const vicini = punti.slice(Math.max(0, i - 2), i + 3).map(q => q.grezzo[sp]);
+      p.indice[sp] = Math.round(vicini.reduce((a, b) => a + b, 0) / vicini.length);
+    });
+  });
+  return { spot, inizio, punti, ctx };
+}
+
+// Finestre sopra soglia in un giorno, ordinate per "area"; se nessuna, il picco
+function finestreGiorno(calcolo, giorno, specie) {
+  const da = calcolo.inizio + giorno * 864e5, a = da + 864e5;
+  const punti = calcolo.punti.filter(p => p.t >= da && p.t < a);
+  const finestre = [];
+  let corrente = null;
+  punti.forEach(p => {
+    if (p.indice[specie] >= SOGLIA_FINESTRA) {
+      if (!corrente) corrente = { inizio: p.t, fine: p.t + QUARTO_MS, area: 0, max: 0, tMax: p.t };
+      corrente.fine = p.t + QUARTO_MS;
+      corrente.area += p.indice[specie];
+      if (p.indice[specie] > corrente.max) { corrente.max = p.indice[specie]; corrente.tMax = p.t; }
+    } else if (corrente) { finestre.push(corrente); corrente = null; }
+  });
+  if (corrente) finestre.push(corrente);
+  finestre.sort((x, y) => y.area - x.area);
+  const picco = punti.reduce((m, p) => (!m || p.indice[specie] > m.indice[specie] ? p : m), null);
+  return { finestre, picco, punti };
+}
+
+function testoFinestra(f) {
+  return formattaOra(new Date(f.inizio).toISOString()) + '-' + formattaOra(new Date(f.fine).toISOString());
+}
+
+// ---------- Disegno ----------
+function segnoFattore(valore) {
+  return valore >= 0.85 ? '++' : valore >= 0.65 ? '+' : valore >= 0.45 ? '=' : '-';
+}
+
+function descriviFattore(nome, specie, punto, spot) {
+  const info = punto.fattori.info;
+  switch (nome) {
+    case 'marea': {
+      const m = info.marea;
+      if (!m) return 'Marea non disponibile';
+      if (info.stanca) return 'Stanca di marea';
+      const forza = info.forza >= 0.7 ? 'Corrente forte' : info.forza >= 0.4 ? 'Corrente media' : 'Corrente debole';
+      return forza + ', ' + (m.montante ? 'montante' : 'calante') + (spot.foce && !m.montante ? ' alla foce' : '');
+    }
+    case 'luce': {
+      if (info.crepuscolo) {
+        const vicinoAlba = info.sole.alba !== null && Math.abs(punto.t - info.sole.alba) <= ORA_MS;
+        const quando = vicinoAlba ? info.sole.alba : info.sole.tramonto;
+        return (vicinoAlba ? 'Alba ' : 'Tramonto ') + formattaOra(new Date(quando).toISOString());
+      }
+      if (info.notte) return 'Notte';
+      return 'Pieno giorno' + (info.nuvole !== null && info.nuvole > 70 ? ', coperto' : '');
+    }
+    case 'mare':
+      if (info.hs === null) return 'Onda non disponibile';
+      if (specie === 'serra') return (info.hs <= 0.5 ? 'Mare calmo, ' : 'Mare mosso, ') + numIt(info.hs) + ' m';
+      return (info.hs >= 0.4 && info.hsCalo !== null && info.hsCalo <= -0.05 ? 'Mare in scaduta, ' : info.hs < 0.25 ? 'Mare piatto, ' : 'Onda ') +
+        numIt(info.hs) + ' m' + (info.hsCalo !== null && info.hsCalo <= -0.05 ? ' in calo' : '');
+    case 'vento': {
+      if (info.vento === null) return 'Vento non disponibile';
+      const nv = info.dirVento !== null ? nomeVento(info.dirVento) : null;
+      return Math.round(info.vento) + ' km/h' + (nv ? ' da ' + nv.sigla + ' (' + nv.nome + ')' : '');
+    }
+    case 'pressione':
+      if (info.d3 === null) return 'Pressione non disponibile';
+      return 'Pressione ' + (info.d3 <= -1 ? 'in calo' : info.d3 >= 1 ? 'in rialzo' : 'stabile') + ', ' + conSegno(info.d3, 1) + ' in 3 h';
+    case 'temp':
+      return 'Acqua ' + numIt(info.sst) + ' °C' + (info.sstStimata ? ' (stimata)' : '');
+    case 'luna':
+      return 'Luna ' + Math.round(info.luna.illuminata * 100) + ' %' + (info.notte ? '' : ', di giorno non conta');
+    case 'foraggio':
+      return info.mangianze ? 'Mangianze segnate di recente' : 'Nessuna mangianza segnata';
+    default:
+      return nome;
+  }
+}
+
+function disegnaGraficoMarea(calcolo, specie) {
+  const contenitore = document.getElementById('pesca-grafico');
+  const w = 318, h = 132, alto = 8, basso = 104;
+  const da = calcolo.inizio, a = da + 864e5;
+  const punti = calcolo.punti.filter(p => p.t >= da && p.t <= a && p.fattori.info.marea);
+  if (punti.length < 2) {
+    contenitore.innerHTML = '<p class="testo-sec">Tavole di marea non disponibili per oggi.</p>';
+    return;
+  }
+  const livelli = punti.map(p => p.fattori.info.marea.h);
+  const min = Math.min(...livelli) - 8, max = Math.max(...livelli) + 8;
+  const x = t => ((t - da) / 864e5) * w;
+  const y = v => alto + (max - v) / (max - min) * (basso - alto);
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
+  svg.setAttribute('class', 'pesca-svg');
+  const el = (tag, attr) => { const e = document.createElementNS(ns, tag); Object.entries(attr).forEach(([k, v]) => e.setAttribute(k, v)); svg.append(e); return e; };
+
+  finestreGiorno(calcolo, 0, specie).finestre.forEach(f => {
+    el('rect', { x: x(f.inizio), y: alto - 4, width: Math.max(2, x(f.fine) - x(f.inizio)), height: basso - alto + 8, rx: 3, class: 'pesca-finestra' });
+  });
+  el('line', { x1: 0, x2: w, y1: y(0), y2: y(0), class: 'pesca-zero' });
+  el('path', { d: punti.map((p, i) => (i ? 'L' : 'M') + x(p.t).toFixed(1) + ',' + y(p.fattori.info.marea.h).toFixed(1)).join(' '), class: 'pesca-curva' });
+
+  const adesso = Date.now();
+  if (adesso >= da && adesso <= a) {
+    const m = mareaIn(calcolo.ctx.estremi, adesso);
+    el('line', { x1: x(adesso), x2: x(adesso), y1: 2, y2: basso + 4, class: 'pesca-adesso' });
+    if (m) el('circle', { cx: x(adesso), cy: y(m.h), r: 3.5, class: 'pesca-punto' });
+  }
+  let ultimaX = -100;
+  calcolo.ctx.estremi.filter(e => e.t >= da && e.t < a).forEach(e => {
+    // Due estremi vicini (marea di quadratura) non si scrivono uno sopra l'altro
+    if (x(e.t) - ultimaX < 58) return;
+    ultimaX = x(e.t);
+    const testo = el('text', { x: Math.min(w - 26, Math.max(26, x(e.t))), y: e.h > (max + min) / 2 ? y(e.h) - 6 : y(e.h) + 13, class: 'pesca-etichetta' });
+    testo.textContent = formattaOra(new Date(e.t).toISOString()) + ' ' + conSegno(e.h);
+  });
+  [0, 6, 12, 18, 24].forEach(ora => {
+    const testo = el('text', { x: Math.min(w - 8, Math.max(8, ora / 24 * w)), y: h - 2, class: 'pesca-asse' });
+    testo.textContent = String(ora).padStart(2, '0');
+  });
+  contenitore.innerHTML = '';
+  contenitore.append(svg);
+}
+
+function escursioneTesto(calcolo) {
+  const da = calcolo.inizio, a = da + 864e5;
+  const oggi = calcolo.ctx.estremi.filter(e => e.t >= da && e.t < a).map(e => e.h);
+  if (oggi.length < 2) return '';
+  const escursione = Math.max(...oggi) - Math.min(...oggi);
+  return 'Escursione ' + escursione + ' cm: ' + (escursione >= 90 ? 'ampia (sizigie).' : escursione <= 50 ? 'ridotta (quadrature).' : 'media.');
+}
+
+function puntoAdesso(calcolo) {
+  return calcolo.punti.reduce((m, p) => (Math.abs(p.t - Date.now()) < Math.abs(m.t - Date.now()) ? p : m), calcolo.punti[0]);
+}
+
+function mostraRisultatoPesca(calcolo) {
+  const spot = calcolo.spot;
+  const adesso = puntoAdesso(calcolo);
+
+  // MOSE nelle prossime 48 ore (solo per lo spot in bocca di porto)
+  const avviso = document.getElementById('pesca-mose');
+  const prossime = spot.mose ? calcolo.ctx.mose.filter(c => c.fine >= Date.now() && c.inizio <= Date.now() + 48 * ORA_MS) : [];
+  avviso.hidden = prossime.length === 0;
+  if (prossime.length) {
+    const c = prossime[0];
+    const differenza = Math.round((new Date(giornoISO(new Date(c.inizio))) - new Date(giornoISO(new Date()))) / 864e5);
+    const giorno = differenza <= 0 ? 'oggi' : differenza === 1 ? 'domani' : new Date(c.inizio).toLocaleDateString('it-IT', { weekday: 'long' });
+    avviso.textContent = (c.inizio <= Date.now() ? 'MOSE alzato ora' : 'MOSE alzato ' + giorno + ' alle ' + formattaOra(new Date(c.inizio).toISOString())) +
+      ' alla bocca di Lido: niente corrente fino alla riapertura.';
+  }
+
+  // Indici: massimo di oggi, valore di adesso, finestra migliore
+  ['spigola', 'serra'].forEach(sp => {
+    const g = finestreGiorno(calcolo, 0, sp);
+    const massimo = g.picco ? g.picco.indice[sp] : 0;
+    const bottone = document.querySelector('.pesca-indice[data-specie="' + sp + '"]');
+    bottone.classList.toggle('attivo', sp === speciePesca);
+    bottone.classList.toggle('basso', massimo < 40);
+    document.getElementById('pesca-num-' + sp).textContent = massimo;
+    let sotto = 'Ora: ' + adesso.indice[sp];
+    if (g.finestre.length) sotto += ' · meglio ' + testoFinestra(g.finestre[0]);
+    else if (g.picco) sotto += ' · picco alle ' + formattaOra(new Date(g.picco.t).toISOString());
+    if (sp === 'serra' && adesso.fattori.molt.serra < 0.3 && !adesso.fattori.info.mose) {
+      sotto = 'Acqua ' + numIt(adesso.fattori.info.sst) + ' °C: fuori stagione';
+    }
+    document.getElementById('pesca-sotto-' + sp).textContent = sotto;
+  });
+
+  // Marea di oggi
+  document.getElementById('pesca-marea-titolo').textContent = 'Marea · ' + spot.marea;
+  disegnaGraficoMarea(calcolo, speciePesca);
+  const m = adesso.fattori.info.marea;
+  document.getElementById('pesca-marea-nota').textContent = m
+    ? 'Ora: ' + (m.montante ? 'montante' : 'calante') + ', ' + Math.round(m.h) + ' cm. ' + escursioneTesto(calcolo)
+    : 'Marea non disponibile oltre le tavole caricate.';
+
+  // Perche: i fattori al momento migliore di oggi
+  const g = finestreGiorno(calcolo, 0, speciePesca);
+  const riferimento = g.picco || adesso;
+  document.getElementById('pesca-perche-titolo').textContent =
+    'Perché ' + riferimento.indice[speciePesca] + ' alle ' + formattaOra(new Date(riferimento.t).toISOString());
+  const elenco = document.getElementById('pesca-perche');
+  elenco.innerHTML = '';
+  const pesi = PESI_PESCA[speciePesca];
+  Object.keys(pesi)
+    .map(nome => ({ nome, valore: riferimento.fattori.f[speciePesca][nome] ?? 0.5, peso: pesi[nome] }))
+    .sort((x, y) => y.peso * Math.abs(y.valore - 0.5) - x.peso * Math.abs(x.valore - 0.5))
+    .slice(0, 4)
+    .forEach(v => {
+      const riga = document.createElement('div');
+      riga.className = 'pesca-motivo' + (v.valore < 0.45 ? ' contro' : v.valore < 0.65 ? ' neutro' : '');
+      const testo = document.createElement('span');
+      testo.textContent = descriviFattore(v.nome, speciePesca, riferimento, spot);
+      const segno = document.createElement('span');
+      segno.className = 'pesca-segno';
+      segno.textContent = segnoFattore(v.valore);
+      riga.append(testo, segno);
+      elenco.append(riga);
+    });
+  if (riferimento.fattori.info.mose) {
+    const riga = document.createElement('div');
+    riga.className = 'pesca-motivo contro';
+    riga.innerHTML = '<span>MOSE alzato: niente corrente</span><span class="pesca-segno">0</span>';
+    elenco.prepend(riga);
+  }
+
+  // Strumenti: condizioni di adesso
+  const i = adesso.fattori.info;
+  const nv = i.dirVento !== null ? nomeVento(i.dirVento) : null;
+  const sole = soleDelGiorno(Date.now(), spot);
+  const ora = t => (t ? formattaOra(new Date(t).toISOString()) : '--:--');
+  const strumenti = document.getElementById('pesca-strumenti');
+  strumenti.innerHTML = '';
+  strumenti.append(creaStrumenti([
+    ['Pressione', i.pressione !== null ? Math.round(i.pressione) + ' hPa' : 'n/d', i.d3 !== null ? conSegno(i.d3, 1) + ' in 3 h' : ''],
+    ['Vento', i.vento !== null ? Math.round(i.vento) + ' km/h' : 'n/d', nv ? nv.sigla + ', ' + nv.nome : ''],
+    ['Onda', i.hs !== null ? numIt(i.hs) + ' m' : 'n/d', i.hsCalo !== null ? (i.hsCalo <= -0.05 ? 'in calo' : i.hsCalo >= 0.05 ? 'in aumento' : 'stabile') : ''],
+    ['Acqua', numIt(i.sst) + ' °C', i.sstStimata ? 'stimata' : 'mare'],
+    ['Sole', ora(sole.alba) + ' / ' + ora(sole.tramonto), 'alba / tramonto'],
+    ['Luna', Math.round(i.luna.illuminata * 100) + ' %', i.luna.crescente ? 'crescente' : 'calante']
+  ]));
+  strumenti.firstChild.classList.add('due');
+
+  // Prossimi giorni
+  const giorni = document.getElementById('pesca-giorni');
+  giorni.innerHTML = '';
+  [0, 1, 2].forEach(n => {
+    const gg = finestreGiorno(calcolo, n, speciePesca);
+    if (!gg.picco) return;
+    const riga = document.createElement('div');
+    riga.className = 'pesca-giorno';
+    const nome = document.createElement('span');
+    nome.textContent = n === 0 ? 'Oggi' : n === 1 ? 'Domani' :
+      new Date(calcolo.inizio + n * 864e5).toLocaleDateString('it-IT', { weekday: 'long' }).replace(/^./, c => c.toUpperCase());
+    const valore = document.createElement('span');
+    valore.className = 'pesca-giorno-valore';
+    const conMose = spot.mose && gg.punti.some(p => p.fattori.info.mose);
+    valore.textContent = (conMose ? 'MOSE · ' : '') + gg.picco.indice[speciePesca] +
+      (gg.finestre.length ? ' · ' + testoFinestra(gg.finestre[0]) : ' · picco ' + formattaOra(new Date(gg.picco.t).toISOString()));
+    if (conMose) valore.classList.add('avviso');
+    riga.append(nome, valore);
+    giorni.append(riga);
+  });
+  const fuori = calcolo.punti.some(p => p.t > Date.now() && !p.fattori.info.marea);
+  document.getElementById('pesca-dati-nota').textContent = fuori
+    ? 'Le tavole di marea finiscono presto: vanno aggiornate.'
+    : (calcolo.ctx.meteo ? 'Meteo aggiornato alle ' + formattaOra(new Date(calcolo.ctx.meteo.quando).toISOString()) + '.' : 'Meteo non disponibile: indice solo con marea, sole e luna.');
+  document.getElementById('btn-apri-diario').textContent = 'Diario · ' + leggiJSON(CHIAVE_DIARIO_PESCA, []).length;
+}
+
+let ultimoCalcoloPesca = null;
+let pescaInCorso = false;
+
+async function mostraPesca(forzaMeteo) {
+  if (pescaInCorso) return;
+  pescaInCorso = true;
+  try {
+    document.querySelectorAll('.sottoscheda-pesca').forEach(b => b.classList.toggle('attiva', b.dataset.spot === spotPesca));
+    await caricaMaree();
+    const spot = spotDaId(spotPesca);
+    const vecchio = leggiJSON(CHIAVE_METEO_PESCA, {})[spot.id] || null;
+    ultimoCalcoloPesca = calcolaPesca(spot, vecchio);
+    mostraRisultatoPesca(ultimoCalcoloPesca);
+    const nuovo = await meteoSpot(spot, forzaMeteo);
+    if (nuovo && (!vecchio || nuovo.quando !== vecchio.quando) && spot.id === spotPesca) {
+      ultimoCalcoloPesca = calcolaPesca(spot, nuovo);
+      mostraRisultatoPesca(ultimoCalcoloPesca);
+    }
+  } catch (errore) {
+    registra('errore', 'pesca', 'Scheda Pesca: ' + (errore.message || 'errore sconosciuto'));
+  } finally {
+    pescaInCorso = false;
+  }
+}
+
+document.querySelectorAll('.sottoscheda-pesca').forEach(b => {
+  b.addEventListener('click', () => {
+    spotPesca = b.dataset.spot;
+    localStorage.setItem(CHIAVE_SPOT_PESCA, spotPesca);
+    mostraPesca();
+  });
+});
+document.querySelectorAll('.pesca-indice').forEach(b => {
+  b.addEventListener('click', () => {
+    speciePesca = b.dataset.specie;
+    localStorage.setItem(CHIAVE_SPECIE_PESCA, speciePesca);
+    if (ultimoCalcoloPesca) mostraRisultatoPesca(ultimoCalcoloPesca);
+  });
+});
+
+// ---------- Diario delle uscite ----------
+const veloUscita = document.getElementById('velo-uscita');
+const formUscita = document.getElementById('form-uscita');
+const veloDiario = document.getElementById('velo-diario');
+
+function oraLocale(d) {
+  return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+}
+
+function apriUscita(u) {
+  uscitaInModifica = u || null;
+  document.getElementById('uscita-titolo').textContent = u ? 'Modifica uscita' : 'Nuova uscita';
+  const inizio = u ? new Date(u.inizio) : new Date(Date.now() - 2 * ORA_MS);
+  const fine = u ? new Date(u.fine) : new Date();
+  document.getElementById('uscita-spot').value = u ? u.spot : spotPesca;
+  document.getElementById('uscita-data').value = giornoISO(inizio);
+  document.getElementById('uscita-dalle').value = oraLocale(inizio);
+  document.getElementById('uscita-alle').value = oraLocale(fine);
+  document.getElementById('uscita-spigole').value = u ? u.spigole : 0;
+  document.getElementById('uscita-serra').value = u ? u.serra : 0;
+  formUscita.querySelector('input[name="uscita-mangianze"][value="' + (u && u.mangianze ? 'si' : 'no') + '"]').checked = true;
+  formUscita.querySelector('input[name="uscita-acqua"][value="' + (u ? u.acqua : 'velata') + '"]').checked = true;
+  document.getElementById('uscita-artificiale').value = u ? u.artificiale || '' : '';
+  document.getElementById('uscita-nota').value = u ? u.nota || '' : '';
+  document.getElementById('btn-uscita-elimina').hidden = !u;
+  document.getElementById('uscita-esito').textContent = '';
+  veloDiario.hidden = true;
+  veloUscita.hidden = false;
+}
+
+function chiudiUscita() {
+  veloUscita.hidden = true;
+  uscitaInModifica = null;
+}
+
+// Le condizioni a meta uscita, salvate con l'uscita per tarare l'indice
+function condizioniUscita(spot, t) {
+  const meteo = leggiJSON(CHIAVE_METEO_PESCA, {})[spot.id] || null;
+  const estremi = estremiSpot(spot);
+  const ctx = { estremi, meteo, mose: chiusureMose(), mangianze: false, vRif: velocitaRiferimento(estremi, t) };
+  const fattori = fattoriPesca(spot, t, ctx);
+  const i = fattori.info;
+  return {
+    indiceSpigola: indiceDa(fattori, 'spigola'), indiceSerra: indiceDa(fattori, 'serra'),
+    fattori: fattori.f,
+    marea: i.marea ? { h: Math.round(i.marea.h), v: Math.round(i.marea.v * 10) / 10, montante: i.marea.montante } : null,
+    onda: i.hs, acqua: i.sst, pressione: i.pressione, tendenza3h: i.d3, vento: i.vento, dirVento: i.dirVento,
+    luna: Math.round(i.luna.illuminata * 100) / 100, meteoDisponibile: !!meteo
+  };
+}
+
+formUscita.addEventListener('submit', evento => {
+  evento.preventDefault();
+  const esito = document.getElementById('uscita-esito');
+  const data = document.getElementById('uscita-data').value;
+  const dalle = document.getElementById('uscita-dalle').value;
+  const alle = document.getElementById('uscita-alle').value;
+  if (!data || !dalle || !alle) { esito.textContent = 'Inserisci giorno e orari.'; return; }
+  const inizio = new Date(data + 'T' + dalle);
+  let fine = new Date(data + 'T' + alle);
+  if (fine <= inizio) fine = new Date(fine.getTime() + 864e5); // uscita a cavallo della mezzanotte
+  const spot = spotDaId(document.getElementById('uscita-spot').value);
+  const numero = id => Math.max(0, Math.min(99, parseInt(document.getElementById(id).value, 10) || 0));
+  const uscita = {
+    id: uscitaInModifica ? uscitaInModifica.id : 'u' + Date.now(),
+    spot: spot.id, inizio: inizio.toISOString(), fine: fine.toISOString(),
+    spigole: numero('uscita-spigole'), serra: numero('uscita-serra'),
+    mangianze: formUscita.querySelector('input[name="uscita-mangianze"]:checked').value === 'si',
+    acqua: formUscita.querySelector('input[name="uscita-acqua"]:checked').value,
+    artificiale: document.getElementById('uscita-artificiale').value.trim().slice(0, 60),
+    nota: document.getElementById('uscita-nota').value.trim().slice(0, 200),
+    condizioni: condizioniUscita(spot, (inizio.getTime() + fine.getTime()) / 2)
+  };
+  const diario = leggiJSON(CHIAVE_DIARIO_PESCA, []).filter(u => u.id !== uscita.id);
+  diario.push(uscita);
+  diario.sort((a, b) => new Date(b.inizio) - new Date(a.inizio));
+  scriviJSON(CHIAVE_DIARIO_PESCA, diario);
+  chiudiUscita();
+  mostraPesca();
+});
+
+document.getElementById('btn-uscita-elimina').addEventListener('click', () => {
+  if (!uscitaInModifica) return;
+  if (!confirm('Eliminare questa uscita dal diario?')) return;
+  scriviJSON(CHIAVE_DIARIO_PESCA, leggiJSON(CHIAVE_DIARIO_PESCA, []).filter(u => u.id !== uscitaInModifica.id));
+  chiudiUscita();
+  mostraPesca();
+});
+document.getElementById('btn-uscita-chiudi').addEventListener('click', chiudiUscita);
+veloUscita.addEventListener('click', evento => { if (evento.target === veloUscita) chiudiUscita(); });
+document.getElementById('btn-registra-uscita').addEventListener('click', () => apriUscita(null));
+
+function mostraDiario() {
+  const diario = leggiJSON(CHIAVE_DIARIO_PESCA, []);
+  const elenco = document.getElementById('diario-elenco');
+  elenco.innerHTML = '';
+  diario.forEach(u => {
+    const riga = document.createElement('button');
+    riga.type = 'button';
+    riga.className = 'diario-riga';
+    const catture = [u.spigole ? u.spigole + (u.spigole === 1 ? ' spigola' : ' spigole') : '', u.serra ? u.serra + ' serra' : '']
+      .filter(Boolean).join(', ') || 'nessuna cattura';
+    const titolo = document.createElement('div');
+    titolo.className = 'voce-titolo';
+    titolo.textContent = spotDaId(u.spot).nome + ' · ' + catture;
+    const sotto = document.createElement('div');
+    sotto.className = 'voce-sotto';
+    const c = u.condizioni || {};
+    sotto.textContent = formattaData(u.inizio) + ', ' + formattaOra(u.inizio) + '-' + formattaOra(u.fine) +
+      (c.indiceSpigola !== undefined ? ' · indice ' + c.indiceSpigola + '/' + c.indiceSerra : '') +
+      ' · ' + u.acqua + (u.mangianze ? ' · mangianze' : '');
+    riga.append(titolo, sotto);
+    riga.addEventListener('click', () => apriUscita(u));
+    elenco.append(riga);
+  });
+  document.getElementById('diario-vuoto').hidden = diario.length > 0;
+}
+
+document.getElementById('btn-apri-diario').addEventListener('click', () => { mostraDiario(); veloDiario.hidden = false; });
+document.getElementById('btn-diario-chiudi').addEventListener('click', () => { veloDiario.hidden = true; });
+veloDiario.addEventListener('click', evento => { if (evento.target === veloDiario) veloDiario.hidden = true; });
+
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && document.body.dataset.vista === 'pesca') mostraPesca();
+});
+if (document.body.dataset.vista === 'pesca') mostraPesca();
 
 // Sincronizzazione automatica con Intervals.icu (dopo che tutte le schede sono pronte)
 sincronizzaSeServe();
