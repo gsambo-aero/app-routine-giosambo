@@ -1290,3 +1290,77 @@ main {
   border-radius: 5px;
   vertical-align: 1px;
 }
+
+/* ---------- Lavoro: annunci di oggi e salvati ---------- */
+.lavoro-riga {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 10px 0;
+  color: inherit;
+  text-decoration: none;
+  border-top: 1px solid var(--bordo);
+}
+.lavoro-riga:first-child { border-top: none; padding-top: 4px; }
+.lavoro-riga:active { opacity: 0.6; }
+.lavoro-logo {
+  flex: none;
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--accento);
+  background: var(--superficie-2);
+  border: 1px solid var(--bordo-forte);
+  border-radius: 10px;
+}
+.lavoro-logo.con-immagine { background: #fff; padding: 5px; }
+.lavoro-logo img { width: 100%; height: 100%; object-fit: contain; }
+.lavoro-match {
+  flex: none;
+  font-family: var(--mono);
+  font-size: 14px;
+}
+.lavoro-stato {
+  flex: none;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--testo-terziario);
+}
+.lavoro-stato.sul-pc { color: var(--successo); }
+.lavoro-cuore {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  margin-right: -8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  padding: 0;
+}
+.lavoro-cuore .ico { width: 21px; height: 21px; stroke: var(--testo-terziario); }
+.lavoro-cuore.salvato .ico { stroke: var(--accento); fill: var(--accento); }
+.lavoro-cuore:active { transform: scale(0.88); }
+.lavoro-vuoto { margin: 4px 0 8px; }
+.lavoro-salvati {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  margin-top: 4px;
+  padding: 12px 0 2px;
+  font-size: 14.5px;
+  color: var(--accento);
+  background: none;
+  border: none;
+  border-top: 1px solid var(--bordo);
+}
+#velo-salvati .lavoro-cuore .ico { stroke: var(--testo-terziario); }
+#velo-salvati .lavoro-cuore.salvato .ico { stroke: #f5a524; fill: #f5a524; }
+#velo-salvati .lavoro-logo { color: #f5a524; }

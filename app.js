@@ -37,7 +37,7 @@ const CHIAVE_REGISTRO = 'registroEventi';
 const MAX_REGISTRO = 50;
 const FONTI_REGISTRO = {
   voce: 'Voce', github: 'GitHub', intervals: 'Intervals.icu', riepilogo: 'Riepilogo',
-  meteo: 'Meteo', backup: 'Backup', sistema: 'Sistema', hevy: 'Hevy'
+  meteo: 'Meteo', backup: 'Backup', sistema: 'Sistema', hevy: 'Hevy', lavoro: 'Lavoro'
 };
 
 // tipo: 'voce' (arrivo applicato), 'errore', 'info'
@@ -3707,6 +3707,258 @@ mostraUltimaImportazioneHevy();
 
 // Ridisegna lo storico ora che la parte Hevy e pronta
 aggiornaPalestra();
+
+
+// ===================================================
+// Lavoro: annunci di oggi dal Radar e annunci salvati
+// ===================================================
+// Il Radar (sul PC, ogni mattina) scrive routine-dati/out/lavoro.json con i soli annunci
+// del giorno. Il cuore salva un annuncio: Routine lo tiene nei Salvati e lo manda al PC
+// in routine-dati/export/lavoro-salvati.json; alla run dopo il Radar lo segna "Da valutare"
+// e lo elenca in out/lavoro.json in "salvatiRicevuti", cosi qui compare "sul PC".
+
+const CHIAVE_LAVORO = 'lavoroOggi';
+const CHIAVE_LAVORO_SALVATI = 'lavoroSalvati';
+const CHIAVE_LAVORO_DA_INVIARE = 'lavoroSalvatiDaInviare';
+const FILE_LAVORO = 'out/lavoro.json';
+const FILE_LAVORO_SALVATI = 'export/lavoro-salvati.json';
+const PAUSA_LAVORO_MS = 10 * 60 * 1000;
+let ultimaLetturaLavoro = 0;
+let invioSalvatiTimer = null;
+
+function lavoroDiOggi() {
+  const l = leggiJSON(CHIAVE_LAVORO, null);
+  return l && l.perGiorno === giornoISO(new Date()) && Array.isArray(l.annunci) ? l : null;
+}
+
+// Accetta solo link web veri (l'annuncio si apre fuori dall'app)
+function linkWeb(testo) {
+  return /^https:\/\//.test(testo || '') ? testo : null;
+}
+
+function idAnnuncio(a) {
+  return String(a.id || a.link || (a.azienda + '|' + a.ruolo)).slice(0, 200);
+}
+
+function iniziali(nome) {
+  const parole = String(nome || '?').replace(/[^\p{L}\p{N} ]/gu, ' ').split(/\s+/).filter(Boolean);
+  const scelte = parole.filter(p => !/^(group|spa|s\.?p\.?a|srl|gmbh|ltd|inc|sa|the|di|de)$/i.test(p));
+  return (scelte.length >= 2 ? scelte[0][0] + scelte[1][0] + (scelte[2] ? scelte[2][0] : '') : (scelte[0] || parole[0] || '?').slice(0, 2))
+    .toUpperCase().slice(0, 3);
+}
+
+// Logo: icona del sito dell'azienda; se non arriva restano le iniziali
+function creaLogo(a) {
+  const box = document.createElement('div');
+  box.className = 'lavoro-logo';
+  box.textContent = iniziali(a.azienda);
+  let dominio = '';
+  try { dominio = new URL(linkWeb(a.sito) || '').hostname; } catch { dominio = ''; }
+  if (dominio) {
+    const img = document.createElement('img');
+    img.alt = '';
+    img.loading = 'lazy';
+    img.src = 'https://www.google.com/s2/favicons?sz=64&domain=' + encodeURIComponent(dominio);
+    // L'icona generica di Google e 16 px: in quel caso meglio le iniziali
+    img.addEventListener('load', () => {
+      if (img.naturalWidth >= 32) { box.textContent = ''; box.append(img); box.classList.add('con-immagine'); }
+    });
+    img.addEventListener('error', () => {});
+  }
+  return box;
+}
+
+function leggiSalvati() {
+  return leggiJSON(CHIAVE_LAVORO_SALVATI, []);
+}
+
+function eSalvato(id) {
+  return leggiSalvati().some(s => s.id === id);
+}
+
+function creaCuore(a, dopo) {
+  const id = idAnnuncio(a);
+  const pulsante = document.createElement('button');
+  pulsante.type = 'button';
+  pulsante.className = 'lavoro-cuore' + (eSalvato(id) ? ' salvato' : '');
+  pulsante.setAttribute('aria-label', eSalvato(id) ? 'Togli dai salvati' : 'Salva annuncio');
+  pulsante.innerHTML = '<svg class="ico"><use href="#i-cuore"/></svg>';
+  pulsante.addEventListener('click', evento => {
+    evento.preventDefault();
+    evento.stopPropagation();
+    cambiaSalvato(a);
+    if (dopo) dopo();
+  });
+  return pulsante;
+}
+
+function cambiaSalvato(a) {
+  const id = idAnnuncio(a);
+  let salvati = leggiSalvati();
+  if (salvati.some(s => s.id === id)) {
+    salvati = salvati.filter(s => s.id !== id);
+  } else {
+    salvati.unshift({
+      id, ruolo: a.ruolo || '', azienda: a.azienda || '', citta: a.citta || '', paese: a.paese || '',
+      sito: a.sito || '', link: a.link || '', match: a.match ?? null,
+      salvatoIl: new Date().toISOString(), sulPC: false
+    });
+  }
+  scriviJSON(CHIAVE_LAVORO_SALVATI, salvati);
+  localStorage.setItem(CHIAVE_LAVORO_DA_INVIARE, '1');
+  mostraLavoro();
+  // Piu tocchi di fila partono in un solo invio
+  clearTimeout(invioSalvatiTimer);
+  invioSalvatiTimer = setTimeout(inviaSalvati, 1500);
+}
+
+// Scrive l'elenco dei salvati in routine-dati (se manca la rete riprova al rientro)
+async function inviaSalvati() {
+  if (!localStorage.getItem(CHIAVE_LAVORO_DA_INVIARE) || !configurazioneGitHub()) return;
+  const salvati = leggiSalvati().map(({ sulPC, ...resto }) => resto);
+  const corpo = JSON.stringify({ versione: 1, aggiornato: new Date().toISOString(), salvati }, null, 1);
+  try {
+    const attuale = await chiamaGitHub('/contents/' + FILE_LAVORO_SALVATI, { cache: 'no-store' });
+    const byte = new TextEncoder().encode(corpo);
+    let binario = '';
+    byte.forEach(b => { binario += String.fromCharCode(b); });
+    await chiamaGitHub('/contents/' + FILE_LAVORO_SALVATI, {
+      method: 'PUT',
+      body: JSON.stringify({
+        message: 'routine: annunci salvati (' + salvati.length + ')',
+        content: btoa(binario),
+        ...(attuale && attuale.sha ? { sha: attuale.sha } : {})
+      })
+    });
+    localStorage.removeItem(CHIAVE_LAVORO_DA_INVIARE);
+  } catch (errore) {
+    registra('errore', 'lavoro', 'Annunci salvati non inviati: ' + (errore.message || 'errore sconosciuto'));
+  }
+}
+
+async function leggiLavoro() {
+  if (!configurazioneGitHub()) return;
+  if (Date.now() - ultimaLetturaLavoro < PAUSA_LAVORO_MS && lavoroDiOggi()) return;
+  try {
+    const dati = await chiamaGitHub('/contents/' + FILE_LAVORO, { cache: 'no-store' });
+    ultimaLetturaLavoro = Date.now();
+    if (!dati || !dati.content) return;
+    const l = JSON.parse(daBase64(dati.content));
+    if (!l || typeof l !== 'object') return;
+    scriviJSON(CHIAVE_LAVORO, l);
+    // Il Radar conferma quali salvati ha segnato sul PC
+    const ricevuti = new Set(Array.isArray(l.salvatiRicevuti) ? l.salvatiRicevuti : []);
+    if (ricevuti.size) {
+      const salvati = leggiSalvati();
+      salvati.forEach(s => { if (ricevuti.has(s.id)) s.sulPC = true; });
+      scriviJSON(CHIAVE_LAVORO_SALVATI, salvati);
+    }
+    mostraLavoro();
+  } catch (errore) {
+    registra('errore', 'lavoro', 'Annunci di oggi non letti: ' + (errore.message || 'errore sconosciuto'));
+  }
+}
+
+function creaRigaAnnuncio(a, sotto, destra, dopoCuore) {
+  const link = linkWeb(a.link);
+  const riga = document.createElement(link ? 'a' : 'div');
+  riga.className = 'lavoro-riga';
+  if (link) { riga.href = link; riga.target = '_blank'; riga.rel = 'noopener'; }
+  const centro = document.createElement('div');
+  centro.className = 'voce-centro';
+  const titolo = document.createElement('div');
+  titolo.className = 'voce-titolo';
+  titolo.textContent = a.ruolo || 'Annuncio';
+  const sottoEl = document.createElement('div');
+  sottoEl.className = 'voce-sotto';
+  sottoEl.textContent = sotto;
+  centro.append(titolo, sottoEl);
+  riga.append(creaLogo(a), centro);
+  if (destra) riga.append(destra);
+  riga.append(creaCuore(a, dopoCuore));
+  return riga;
+}
+
+function luogo(a) {
+  return [a.citta, a.paese].filter(testoValido).join(', ');
+}
+
+function mostraLavoro() {
+  const l = lavoroDiOggi();
+  const annunci = l ? l.annunci.filter(a => a && testoValido(a.ruolo)) : [];
+  annunci.sort((x, y) => (Number(y.match) || 0) - (Number(x.match) || 0));
+  const salvati = leggiSalvati();
+  const card = document.getElementById('lavoro-card');
+  card.hidden = annunci.length === 0 && salvati.length === 0 && !l;
+
+  document.getElementById('lavoro-numero').textContent = annunci.length ? 'Annunci di oggi · ' + annunci.length : 'Annunci di oggi';
+  document.getElementById('lavoro-ora').textContent = l && l.generato ? 'Radar ' + formattaOra(l.generato) : '';
+  const elenco = document.getElementById('lavoro-elenco');
+  elenco.innerHTML = '';
+  annunci.forEach(a => {
+    const sotto = [a.azienda, luogo(a)].filter(testoValido).join(' · ') + (a.startup ? ' · startup' : '');
+    let destra = null;
+    if (Number.isFinite(Number(a.match)) && a.match !== null && a.match !== '') {
+      destra = document.createElement('span');
+      destra.className = 'lavoro-match';
+      scriviValore(destra, Math.round(Number(a.match)) + ' %');
+    }
+    elenco.append(creaRigaAnnuncio(a, sotto, destra));
+  });
+  const vuoto = document.getElementById('lavoro-vuoto');
+  vuoto.hidden = annunci.length > 0;
+  vuoto.textContent = l
+    ? 'Nessun annuncio nuovo oggi.'
+    : 'Il Radar non ha ancora pubblicato gli annunci di oggi (passa alle 9:50, a PC acceso).';
+
+  const pulsanteSalvati = document.getElementById('btn-lavoro-salvati');
+  pulsanteSalvati.hidden = salvati.length === 0;
+  document.getElementById('lavoro-salvati-numero').textContent = 'Salvati · ' + salvati.length;
+  if (!veloSalvati.hidden) mostraSalvati();
+}
+
+// ---------- Pannello dei salvati ----------
+const veloSalvati = document.getElementById('velo-salvati');
+
+function quandoSalvato(iso) {
+  const giorni = Math.round((new Date(giornoISO(new Date())) - new Date(giornoISO(new Date(iso)))) / 86400000);
+  if (giorni <= 0) return 'salvato oggi';
+  if (giorni === 1) return 'salvato ieri';
+  return 'salvato ' + giorni + ' giorni fa';
+}
+
+function mostraSalvati() {
+  const salvati = leggiSalvati();
+  const elenco = document.getElementById('salvati-elenco');
+  elenco.innerHTML = '';
+  salvati.forEach(s => {
+    const sotto = [s.azienda, s.citta, quandoSalvato(s.salvatoIl)].filter(testoValido).join(' · ');
+    const stato = document.createElement('span');
+    stato.className = 'lavoro-stato' + (s.sulPC ? ' sul-pc' : '');
+    stato.textContent = s.sulPC ? 'sul PC' : 'in attesa';
+    elenco.append(creaRigaAnnuncio(s, sotto, stato, () => mostraSalvati()));
+  });
+  document.getElementById('salvati-vuoto').hidden = salvati.length > 0;
+}
+
+document.getElementById('btn-lavoro-salvati').addEventListener('click', () => {
+  mostraSalvati();
+  veloSalvati.hidden = false;
+});
+document.getElementById('btn-salvati-chiudi').addEventListener('click', () => { veloSalvati.hidden = true; });
+veloSalvati.addEventListener('click', evento => {
+  if (evento.target === veloSalvati) veloSalvati.hidden = true;
+});
+
+mostraLavoro();
+leggiLavoro();
+inviaSalvati();
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) return;
+  leggiLavoro();
+  inviaSalvati();
+  mostraLavoro();
+});
 
 // Sincronizzazione automatica con Intervals.icu (dopo che tutte le schede sono pronte)
 sincronizzaSeServe();

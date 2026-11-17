@@ -113,6 +113,19 @@
         <div id="notizie-elenco" class="link-elenco"></div>
       </div>
 
+      <!-- Annunci di lavoro del giorno (dal Radar sul PC) e salvati -->
+      <div id="lavoro-card" class="card" hidden>
+        <div class="hero-testa">
+          <span id="lavoro-numero" class="etichetta">Annunci di oggi</span>
+          <span id="lavoro-ora" class="etichetta"></span>
+        </div>
+        <div id="lavoro-elenco" class="link-elenco"></div>
+        <p id="lavoro-vuoto" class="testo-sec lavoro-vuoto" hidden></p>
+        <button type="button" id="btn-lavoro-salvati" class="lavoro-salvati" hidden>
+          <span id="lavoro-salvati-numero">Salvati</span><span aria-hidden="true">&rsaquo;</span>
+        </button>
+      </div>
+
       <!-- Sveglia in forma compatta: le preferite si impostano con un tocco -->
       <div class="card">
         <div class="hero-testa">
@@ -587,6 +600,17 @@
       <p id="all-dett-solo-routine" class="nota">Registrato solo in Routine: importa da Hevy per vedere gli esercizi.</p>
       <button type="button" id="btn-all-modifica" class="btn-secondario">Modifica</button>
       <button type="button" id="btn-all-chiudi" class="btn-testo">Chiudi</button>
+    </div>
+  </div>
+
+  <!-- Annunci di lavoro salvati col cuore -->
+  <div id="velo-salvati" class="velo" hidden>
+    <div class="foglio">
+      <h3>Annunci salvati</h3>
+      <span class="testo-sec">Il Radar li segna "Da valutare" sul PC alla prossima run. Tocca il cuore per toglierli.</span>
+      <div id="salvati-elenco" class="link-elenco"></div>
+      <p id="salvati-vuoto" class="nota" hidden>Nessun annuncio salvato.</p>
+      <button type="button" id="btn-salvati-chiudi" class="btn-testo">Chiudi</button>
     </div>
   </div>
 
