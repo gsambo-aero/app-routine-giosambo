@@ -1261,3 +1261,32 @@ main {
   text-align: center;
   padding: 6px 0;
 }
+
+/* ---------- Dettaglio allenamento: esercizi da Hevy ---------- */
+.esercizi {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.esercizio {
+  padding: 9px 0;
+  border-top: 1px solid var(--bordo);
+}
+.esercizio:first-child { border-top: none; padding-top: 0; }
+.esercizio-nome { font-size: 15px; }
+.esercizio-serie {
+  margin-top: 3px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--testo-secondario);
+  line-height: 1.5;
+}
+.esercizio-tag {
+  margin-left: 6px;
+  padding: 0 5px;
+  font-size: 11px;
+  color: var(--pericolo);
+  border: 1px solid var(--pericolo);
+  border-radius: 5px;
+  vertical-align: 1px;
+}

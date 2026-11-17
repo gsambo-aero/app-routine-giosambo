@@ -37,7 +37,7 @@ const CHIAVE_REGISTRO = 'registroEventi';
 const MAX_REGISTRO = 50;
 const FONTI_REGISTRO = {
   voce: 'Voce', github: 'GitHub', intervals: 'Intervals.icu', riepilogo: 'Riepilogo',
-  meteo: 'Meteo', backup: 'Backup', sistema: 'Sistema'
+  meteo: 'Meteo', backup: 'Backup', sistema: 'Sistema', hevy: 'Hevy'
 };
 
 // tipo: 'voce' (arrivo applicato), 'errore', 'info'
@@ -518,13 +518,23 @@ function mostraStorico(allenamenti) {
       sinistra.append(nota);
     }
 
+    // Esercizi, volume e battito (la parte Hevy si carica dopo: al primo disegno puo mancare)
+    let extra = '';
+    try { extra = sottotitoloHevy(a); } catch { extra = ''; }
+    if (extra) {
+      const r = document.createElement('div');
+      r.className = 'riga-sotto';
+      r.textContent = extra;
+      sinistra.append(r);
+    }
+
     const destra = document.createElement('div');
     destra.className = 'riga-valore';
     destra.textContent = formattaDurata(a.durataMs);
     riga.append(destra);
 
-    // Tocco sulla riga: apre il pannello di modifica
-    riga.addEventListener('click', () => apriModifica(a));
+    // Tocco sulla riga: apre il dettaglio (da li si puo modificare)
+    riga.addEventListener('click', () => apriDettaglioAllenamento(a));
 
     elStorico.append(riga);
   });
@@ -687,7 +697,7 @@ const CHIAVE_API_INTERVALS = 'intervalsChiaveApi'; // resta solo su questo iPhon
 const CHIAVE_DATI_SALUTE = 'datiSalute';           // { notti: { "AAAA-MM-GG": {...} }, attivita: { id: {...} } }
 const CHIAVE_ULTIMA_SYNC = 'ultimaSincronizzazione';
 const CHIAVE_VERSIONE_DATI = 'versioneDatiSalute';
-const VERSIONE_DATI = '2'; // se cambia, alla prossima apertura si riscarica tutto
+const VERSIONE_DATI = '3'; // se cambia, alla prossima apertura si riscarica tutto (3: tempo di registrazione)
 const GIORNI_DA_SCARICARE = 90;
 const ORE_TRA_SYNC_AUTOMATICHE = 1;
 
@@ -753,9 +763,10 @@ async function sincronizza() {
       nome: a.name,
       tipo: a.type,                     // es. "Run"
       inizio: a.start_date,             // orario UTC, confrontabile con gli allenamenti salvati
-      durataSec: a.elapsed_time,        // tempo totale
-      movimentoSec: a.moving_time,      // tempo in movimento
-      distanzaM: a.distance,
+      durataSec: a.elapsed_time,        // tempo totale, pause comprese
+      movimentoSec: a.moving_time,      // tempo in movimento ricalcolato da Intervals.icu dalla velocita
+      registrazioneSec: a.icu_recording_time, // tempo con le pause tolte: e la "Durata" dell'app Suunto
+      distanzaM: a.icu_distance || a.distance, // icu_distance e la distanza consigliata da Intervals.icu
       dislivelloM: a.total_elevation_gain,
       fcMedia: a.average_heartrate,
       fcMax: a.max_heartrate,
@@ -777,6 +788,7 @@ function aggiornaSchedeSalute() {
   mostraStatoSync();
   mostraCorsa();
   mostraSonno();
+  aggiornaPalestra(); // il battito degli allenamenti arriva dalle attivita appena scaricate
 }
 
 // Sincronizzazione avviata da un pulsante: mostra l'esito in Impostazioni.
@@ -869,10 +881,15 @@ function leggiCorse() {
     .sort((a, b) => b.inizio.localeCompare(a.inizio));
 }
 
-// Secondi per km (usa il tempo in movimento se disponibile)
+// Il tempo su cui si calcola il passo: lo stesso dell'app Suunto (pause tolte),
+// altrimenti il tempo in movimento, altrimenti il tempo totale
+function tempoCorsaSec(corsa) {
+  return corsa.registrazioneSec || corsa.movimentoSec || corsa.durataSec;
+}
+
+// Secondi per km
 function passoSec(corsa) {
-  const tempo = corsa.movimentoSec || corsa.durataSec;
-  return tempo / (corsa.distanzaM / 1000);
+  return tempoCorsaSec(corsa) / (corsa.distanzaM / 1000);
 }
 
 function passoValido(corsa) {
@@ -1062,7 +1079,7 @@ function mostraUltimaCorsa(c) {
   const strumenti = creaStrumenti([
     ['Passo', formattaPasso(passoSec(c))],
     ['FC media', valoreOnd(c.fcMedia, ' bpm')],
-    ['Tempo', formattaDurata((c.movimentoSec || c.durataSec) * 1000)]
+    ['Tempo', formattaDurata(tempoCorsaSec(c) * 1000)]
   ]);
 
   elCorsaUltima.append(testa, valore, strumenti);
@@ -1086,14 +1103,14 @@ function mostraRiepilogoCorsa(corse) {
   // Passo medio del mese: tempo totale / km totali (solo corse con passo plausibile)
   const valide = diMese.filter(passoValido);
   const km = somma(valide, 'distanzaM') / 1000;
-  const tempo = valide.reduce((t, c) => t + (c.movimentoSec || c.durataSec), 0);
+  const tempo = valide.reduce((t, c) => t + tempoCorsaSec(c), 0);
   scriviValore(document.getElementById('stat-corsa-mese-passo'), km > 0 ? formattaPasso(tempo / km) : 'n/d');
 
   // FC media del mese, pesata sulla durata di ogni corsa
   const conFc = diMese.filter(c => c.fcMedia);
-  const pesoTot = conFc.reduce((t, c) => t + (c.movimentoSec || c.durataSec), 0);
+  const pesoTot = conFc.reduce((t, c) => t + tempoCorsaSec(c), 0);
   const fc = pesoTot > 0
-    ? conFc.reduce((t, c) => t + c.fcMedia * (c.movimentoSec || c.durataSec), 0) / pesoTot
+    ? conFc.reduce((t, c) => t + c.fcMedia * tempoCorsaSec(c), 0) / pesoTot
     : null;
   scriviValore(document.getElementById('stat-corsa-mese-fc'), valoreOnd(fc, ' bpm'));
 }
@@ -1171,10 +1188,10 @@ function apriDettaglioCorsa(c) {
     new Date(c.inizio).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' }) +
     ' alle ' + formattaOra(c.inizio);
 
-  const movimento = c.movimentoSec || c.durataSec;
+  const movimento = tempoCorsaSec(c);
   const voci = [
     ['Distanza', formattaKm(c.distanzaM) + ' km'],
-    ['Tempo in movimento', formattaDurata(movimento * 1000)],
+    ['Durata', formattaDurata(movimento * 1000)],
     ['Passo medio', formattaPasso(passoSec(c))],
     ['Velocità media', ((c.distanzaM / 1000) / (movimento / 3600)).toFixed(1).replace('.', ',') + ' km/h'],
     ['FC media', valoreOnd(c.fcMedia, ' bpm')],
@@ -3362,6 +3379,334 @@ document.addEventListener('visibilitychange', () => {
   mostraCitazione();
 });
 
+
+
+// ===================================================
+// Palestra: importazione da Hevy e battito dal Suunto
+// ===================================================
+// Hevy esporta un CSV con una riga per ogni serie (14 colonne, nessun battito).
+// Routine raggruppa le righe in allenamenti, li unisce a quelli registrati con
+// Inizia/Termina (stesso orario entro 20 minuti) e prende il battito dall'attivita
+// Suunto di Intervals.icu che si sovrappone all'orario.
+
+const CHIAVE_IMPORT_HEVY = 'ultimaImportazioneHevy';
+const MINUTI_ABBINAMENTO = 20;
+const MESI_HEVY = {
+  gen: 0, feb: 1, mar: 2, apr: 3, mag: 4, giu: 5, lug: 6, ago: 7, set: 8, ott: 9, nov: 10, dic: 11,
+  jan: 0, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, dec: 11
+};
+
+// Legge un CSV rispettando virgolette, virgole e a capo dentro i campi
+function leggiCSV(testo) {
+  const righe = [];
+  let riga = [], campo = '', tra = false;
+  testo = testo.replace(/^﻿/, '');
+  for (let i = 0; i < testo.length; i++) {
+    const c = testo[i];
+    if (tra) {
+      if (c === '"' && testo[i + 1] === '"') { campo += '"'; i++; }
+      else if (c === '"') tra = false;
+      else campo += c;
+    } else if (c === '"') tra = true;
+    else if (c === ',') { riga.push(campo); campo = ''; }
+    else if (c === '\n' || c === '\r') {
+      if (c === '\r' && testo[i + 1] === '\n') i++;
+      riga.push(campo); campo = '';
+      if (riga.length > 1 || riga[0] !== '') righe.push(riga);
+      riga = [];
+    } else campo += c;
+  }
+  if (campo !== '' || riga.length) { riga.push(campo); righe.push(riga); }
+  return righe;
+}
+
+// "13 nov 2026, 11:34" (o "13 Nov 2026, 11:34") -> Date in ora locale
+function leggiDataHevy(testo) {
+  const m = /^(\d{1,2})\s+([A-Za-z]+)\.?\s+(\d{4}),?\s+(\d{1,2}):(\d{2})/.exec((testo || '').trim());
+  if (m) {
+    const mese = MESI_HEVY[m[2].toLowerCase().slice(0, 3)];
+    if (mese !== undefined) return new Date(Number(m[3]), mese, Number(m[1]), Number(m[4]), Number(m[5]));
+  }
+  const d = new Date(testo);
+  return isNaN(d) ? null : d;
+}
+
+function numeroOnull(testo) {
+  if (testo === undefined || testo === null || String(testo).trim() === '') return null;
+  const n = Number(String(testo).replace(',', '.'));
+  return isFinite(n) ? n : null;
+}
+
+// Dal CSV agli allenamenti: [{ chiave, nome, inizio, fine, nota, esercizi: [{ nome, serie: [...] }] }]
+function allenamentiDaCSV(testo) {
+  const righe = leggiCSV(testo);
+  if (righe.length < 2) throw new Error('Il file non contiene allenamenti.');
+  const col = {};
+  righe[0].forEach((nome, i) => { col[nome.trim()] = i; });
+  if (col.title === undefined || col.start_time === undefined || col.exercise_title === undefined) {
+    throw new Error('Non sembra un’esportazione di Hevy: mancano le colonne attese.');
+  }
+  const libbre = col.weight_kg === undefined && col.weight_lbs !== undefined;
+  const miglia = col.distance_km === undefined && col.distance_miles !== undefined;
+  const valore = (r, nome) => (col[nome] === undefined ? '' : r[col[nome]]);
+
+  const perAllenamento = new Map();
+  righe.slice(1).forEach(r => {
+    const inizio = leggiDataHevy(valore(r, 'start_time'));
+    if (!inizio) return;
+    const chiave = valore(r, 'start_time') + '|' + valore(r, 'title');
+    if (!perAllenamento.has(chiave)) {
+      const fine = leggiDataHevy(valore(r, 'end_time')) || inizio;
+      perAllenamento.set(chiave, {
+        chiave, nome: valore(r, 'title').trim() || 'Allenamento', inizio, fine,
+        nota: valore(r, 'description').trim(), esercizi: []
+      });
+    }
+    const allenamento = perAllenamento.get(chiave);
+    const nomeEs = valore(r, 'exercise_title').trim();
+    let esercizio = allenamento.esercizi[allenamento.esercizi.length - 1];
+    // Un esercizio nuovo comincia quando cambia il nome (o riparte la numerazione delle serie)
+    if (!esercizio || esercizio.nome !== nomeEs || numeroOnull(valore(r, 'set_index')) === 0) {
+      esercizio = { nome: nomeEs, serie: [] };
+      allenamento.esercizi.push(esercizio);
+    }
+    let kg = numeroOnull(valore(r, libbre ? 'weight_lbs' : 'weight_kg'));
+    if (kg !== null && libbre) kg = Math.round(kg * 0.4536 * 10) / 10;
+    let km = numeroOnull(valore(r, miglia ? 'distance_miles' : 'distance_km'));
+    if (km !== null && miglia) km = Math.round(km * 1.609 * 100) / 100;
+    const reps = numeroOnull(valore(r, 'reps'));
+    esercizio.serie.push({
+      tipo: valore(r, 'set_type') || 'normal',
+      kg, reps, km,
+      sec: numeroOnull(valore(r, 'duration_seconds')),
+      // Un peso o un numero di ripetizioni fuori scala e quasi sempre un errore di battitura
+      anomala: (kg !== null && kg > 500) || (reps !== null && reps > 200)
+    });
+  });
+  return [...perAllenamento.values()];
+}
+
+// Volume = somma di peso x ripetizioni, senza riscaldamento e senza serie anomale
+function riassuntoHevy(hevy) {
+  let serie = 0, volume = 0, anomale = 0;
+  (hevy && hevy.esercizi || []).forEach(e => e.serie.forEach(s => {
+    serie += 1;
+    if (s.anomala) { anomale += 1; return; }
+    if (s.tipo !== 'warmup' && s.kg > 0 && s.reps > 0) volume += s.kg * s.reps;
+  }));
+  return { esercizi: (hevy && hevy.esercizi || []).length, serie, volume, anomale };
+}
+
+// Unisce gli allenamenti di Hevy allo storico di Routine. Restituisce i conteggi.
+function importaAllenamentiHevy(daHevy) {
+  const allenamenti = leggiJSON(CHIAVE_ALLENAMENTI, []);
+  let nuovi = 0, uniti = 0, aggiornati = 0;
+  daHevy.forEach((h, i) => {
+    const hevy = { chiave: h.chiave, esercizi: h.esercizi };
+    const gia = allenamenti.find(a => a.hevy && a.hevy.chiave === h.chiave);
+    if (gia) {
+      gia.hevy = hevy;
+      aggiornati += 1;
+      return;
+    }
+    const vicino = allenamenti.find(a => !a.hevy &&
+      Math.abs(new Date(a.inizio) - h.inizio) <= MINUTI_ABBINAMENTO * 60000);
+    if (vicino) {
+      vicino.hevy = hevy;
+      uniti += 1;
+      return;
+    }
+    allenamenti.push({
+      id: 'h' + h.inizio.getTime() + '-' + i,
+      nome: h.nome.slice(0, 40),
+      inizio: h.inizio.toISOString(),
+      fine: h.fine.toISOString(),
+      durataMs: Math.max(0, h.fine - h.inizio),
+      nota: h.nota.slice(0, 300),
+      fonte: 'hevy',
+      hevy
+    });
+    nuovi += 1;
+  });
+  scriviJSON(CHIAVE_ALLENAMENTI, allenamenti);
+  return { nuovi, uniti, aggiornati };
+}
+
+// Il battito: l'attivita Suunto (Intervals.icu) che si sovrappone di piu all'allenamento
+function attivitaSuuntoPer(allenamento) {
+  const dati = leggiJSON(CHIAVE_DATI_SALUTE, { notti: {}, attivita: {} });
+  const inizio = new Date(allenamento.inizio).getTime();
+  const fine = new Date(allenamento.fine || allenamento.inizio).getTime();
+  let migliore = null, sovrapposizioneMax = 0;
+  Object.values(dati.attivita || {}).forEach(att => {
+    if (!att.fcMedia || !att.inizio) return;
+    const aInizio = new Date(att.inizio).getTime();
+    const aFine = aInizio + (att.durataSec || 0) * 1000;
+    const sovrapposizione = Math.min(fine, aFine) - Math.max(inizio, aInizio);
+    const vicini = Math.abs(aInizio - inizio) <= MINUTI_ABBINAMENTO * 60000;
+    // Le corse si escludono: una corsa non e la seduta in palestra
+    if ((sovrapposizione > 0 || vicini) && !TIPI_CORSA.includes(att.tipo) && sovrapposizione >= sovrapposizioneMax) {
+      sovrapposizioneMax = Math.max(sovrapposizione, 0);
+      migliore = att;
+    }
+  });
+  return migliore;
+}
+
+function formattaTonnellate(kg) {
+  return (kg / 1000).toFixed(1).replace('.', ',') + ' t';
+}
+
+function formattaKg(kg) {
+  return String(Math.round(kg * 10) / 10).replace('.', ',');
+}
+
+// Una serie in breve: "60×8", "12 rip.", "3 km in 18:02"
+function testoSerie(s) {
+  if (s.km) return String(s.km).replace('.', ',') + ' km' + (s.sec ? ' in ' + formattaCronometro(s.sec * 1000).replace(/^00:/, '') : '');
+  if (s.reps !== null && s.reps !== undefined) return s.kg ? formattaKg(s.kg) + '×' + s.reps : s.reps + ' rip.';
+  if (s.sec) return formattaCronometro(s.sec * 1000).replace(/^00:/, '');
+  return '-';
+}
+
+// La riga in piu nello storico: "7 esercizi · 22 serie · 4,1 t · 118 bpm"
+function sottotitoloHevy(a) {
+  const parti = [];
+  if (a.hevy) {
+    const r = riassuntoHevy(a.hevy);
+    parti.push(r.esercizi + (r.esercizi === 1 ? ' esercizio' : ' esercizi'), r.serie + ' serie');
+    if (r.volume > 0) parti.push(formattaTonnellate(r.volume));
+  }
+  const att = attivitaSuuntoPer(a);
+  if (att) parti.push('♥ ' + Math.round(att.fcMedia) + ' bpm');
+  else if (a.hevy) parti.push('battito non trovato');
+  return parti.join(' · ');
+}
+
+// ---------- Dettaglio di un allenamento ----------
+const veloAllenamento = document.getElementById('velo-allenamento');
+let allenamentoInDettaglio = null;
+
+function apriDettaglioAllenamento(a) {
+  allenamentoInDettaglio = a;
+  document.getElementById('all-dett-titolo').textContent = a.nome;
+  document.getElementById('all-dett-data').textContent =
+    new Date(a.inizio).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' }) +
+    ', ' + formattaOra(a.inizio) + (a.fine ? ' - ' + formattaOra(a.fine) : '');
+
+  const r = riassuntoHevy(a.hevy);
+  const att = attivitaSuuntoPer(a);
+  const voci = [
+    ['Durata', formattaDurata(a.durataMs || 0)],
+    ['Volume', r.volume > 0 ? formattaTonnellate(r.volume) : 'n/d'],
+    ['FC media', att ? Math.round(att.fcMedia) + ' bpm' : 'n/d'],
+    ['FC massima', att && att.fcMax ? Math.round(att.fcMax) + ' bpm' : 'n/d']
+  ];
+  const elValori = document.getElementById('all-dett-valori');
+  elValori.innerHTML = '';
+  voci.forEach(([nome, testo]) => {
+    const box = document.createElement('div');
+    box.className = 'dettaglio';
+    const e = document.createElement('span');
+    e.className = 'dettaglio-etichetta';
+    e.textContent = nome;
+    const v = document.createElement('span');
+    v.className = 'dettaglio-valore';
+    scriviValore(v, testo);
+    box.append(e, v);
+    elValori.append(box);
+  });
+
+  document.getElementById('all-dett-fc').textContent = att
+    ? 'Battito dall’attività Suunto delle ' + formattaOra(att.inizio) + '.'
+    : 'Nessuna attività Suunto trovata in questo orario.';
+
+  const elEsercizi = document.getElementById('all-dett-esercizi');
+  const titoloEs = document.getElementById('all-dett-esercizi-titolo');
+  elEsercizi.innerHTML = '';
+  const esercizi = a.hevy ? a.hevy.esercizi : [];
+  titoloEs.hidden = esercizi.length === 0;
+  titoloEs.textContent = 'Esercizi · ' + r.serie + ' serie';
+  esercizi.forEach(es => {
+    const riga = document.createElement('li');
+    riga.className = 'esercizio';
+    const nome = document.createElement('div');
+    nome.className = 'esercizio-nome';
+    nome.textContent = es.nome;
+    if (es.serie.some(s => s.anomala)) {
+      const tag = document.createElement('span');
+      tag.className = 'esercizio-tag';
+      tag.textContent = 'da controllare';
+      nome.append(tag);
+    }
+    const serie = document.createElement('div');
+    serie.className = 'esercizio-serie';
+    serie.textContent = es.serie.map(testoSerie).join(' · ');
+    riga.append(nome, serie);
+    if (es.serie.some(s => s.anomala)) {
+      const nota = document.createElement('div');
+      nota.className = 'voce-sotto';
+      nota.textContent = 'Peso fuori scala: escluso dal volume. Correggilo in Hevy e reimporta.';
+      riga.append(nota);
+    }
+    elEsercizi.append(riga);
+  });
+  document.getElementById('all-dett-solo-routine').hidden = !!a.hevy;
+  veloAllenamento.hidden = false;
+}
+
+function chiudiDettaglioAllenamento() {
+  veloAllenamento.hidden = true;
+}
+
+document.getElementById('btn-all-chiudi').addEventListener('click', chiudiDettaglioAllenamento);
+document.getElementById('btn-all-modifica').addEventListener('click', () => {
+  chiudiDettaglioAllenamento();
+  if (allenamentoInDettaglio) apriModifica(allenamentoInDettaglio);
+});
+veloAllenamento.addEventListener('click', evento => {
+  if (evento.target === veloAllenamento) chiudiDettaglioAllenamento();
+});
+
+// ---------- Pulsante "Importa da Hevy" ----------
+const campoFileHevy = document.getElementById('file-hevy');
+const esitoHevy = document.getElementById('esito-hevy');
+
+function mostraUltimaImportazioneHevy() {
+  const ultima = leggiJSON(CHIAVE_IMPORT_HEVY, null);
+  document.getElementById('ultima-hevy').textContent = ultima
+    ? 'Ultima importazione: ' + formattaData(ultima.quando) + ', ' + ultima.allenamenti + ' allenamenti nel file.'
+    : 'Esporta da Hevy: Profilo, Impostazioni, Export & Import Data, Export Workouts.';
+}
+
+document.getElementById('btn-importa-hevy').addEventListener('click', () => campoFileHevy.click());
+
+campoFileHevy.addEventListener('change', async () => {
+  const file = campoFileHevy.files[0];
+  campoFileHevy.value = '';
+  if (!file) return;
+  try {
+    const daHevy = allenamentiDaCSV(await file.text());
+    const esito = importaAllenamentiHevy(daHevy);
+    scriviJSON(CHIAVE_IMPORT_HEVY, { quando: new Date().toISOString(), allenamenti: daHevy.length });
+    const testo = 'Importati ' + esito.nuovi + ' allenamenti nuovi, ' + esito.uniti +
+      ' uniti a quelli di Routine, ' + esito.aggiornati + ' già presenti.';
+    esitoHevy.textContent = testo;
+    esitoHevy.classList.remove('esito-errore');
+    registra('info', 'hevy', testo);
+    mostraUltimaImportazioneHevy();
+    aggiornaPalestra();
+  } catch (errore) {
+    esitoHevy.textContent = errore.message || 'File non leggibile.';
+    esitoHevy.classList.add('esito-errore');
+    registra('errore', 'hevy', 'Importazione da Hevy non riuscita: ' + (errore.message || 'file non leggibile'));
+  }
+});
+
+mostraUltimaImportazioneHevy();
+
+// Ridisegna lo storico ora che la parte Hevy e pronta
+aggiornaPalestra();
 
 // Sincronizzazione automatica con Intervals.icu (dopo che tutte le schede sono pronte)
 sincronizzaSeServe();

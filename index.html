@@ -423,6 +423,14 @@
                 <button type="button" id="btn-riprendi" class="btn-testo">Torna all'allenamento</button>
               </form>
 
+              <!-- Importazione degli allenamenti da Hevy (file CSV) -->
+              <div class="card centro">
+                <button type="button" id="btn-importa-hevy" class="btn-secondario">Importa da Hevy</button>
+                <input type="file" id="file-hevy" accept=".csv,text/csv,text/comma-separated-values" hidden>
+                <span id="ultima-hevy" class="testo-sec"></span>
+              </div>
+              <p id="esito-hevy" class="esito"></p>
+
               <!-- Riepilogo numerico -->
               <h2 class="sezione">Riepilogo</h2>
               <div class="griglia-stat">
@@ -448,7 +456,7 @@
               <h2 class="sezione">Storico</h2>
               <ul id="storico" class="lista lista-apribile"></ul>
               <p id="storico-vuoto" class="nota">Nessun allenamento salvato.</p>
-              <p id="storico-aiuto" class="nota">Tocca un allenamento per modificarlo.</p>
+              <p id="storico-aiuto" class="nota">Tocca un allenamento per i dettagli e per modificarlo.</p>
       </div>
     </section>
 
@@ -566,6 +574,21 @@
     </div>
   </div>
 
+
+  <!-- Dettaglio di un allenamento: esercizi da Hevy, battito dal Suunto -->
+  <div id="velo-allenamento" class="velo" hidden>
+    <div class="foglio">
+      <h3 id="all-dett-titolo"></h3>
+      <span id="all-dett-data" class="testo-sec"></span>
+      <div id="all-dett-valori" class="dettagli"></div>
+      <span id="all-dett-fc" class="testo-sec"></span>
+      <span id="all-dett-esercizi-titolo" class="etichetta"></span>
+      <ul id="all-dett-esercizi" class="esercizi"></ul>
+      <p id="all-dett-solo-routine" class="nota">Registrato solo in Routine: importa da Hevy per vedere gli esercizi.</p>
+      <button type="button" id="btn-all-modifica" class="btn-secondario">Modifica</button>
+      <button type="button" id="btn-all-chiudi" class="btn-testo">Chiudi</button>
+    </div>
+  </div>
 
   <!-- Pannello sveglia (si apre dalla scheda Oggi) -->
   <div id="velo-sveglia" class="velo" hidden>
