@@ -4533,22 +4533,33 @@ function mostraRisultatoPesca(calcolo) {
     'Perché ' + riferimento.indice[speciePesca] + ' alle ' + formattaOra(new Date(riferimento.t).toISOString());
   const elenco = document.getElementById('pesca-perche');
   elenco.innerHTML = '';
+  // Marea sempre in cima (pesa piu di tutte), poi le tre condizioni che spostano di piu il punteggio.
+  // A destra i punti presi sul massimo della condizione (es. 12/30).
   const pesi = PESI_PESCA[speciePesca];
-  Object.keys(pesi)
-    .map(nome => ({ nome, valore: riferimento.fattori.f[speciePesca][nome] ?? 0.5, peso: pesi[nome] }))
+  const voci = Object.keys(pesi).map(nome => ({ nome, valore: riferimento.fattori.f[speciePesca][nome] ?? 0.5, peso: pesi[nome] }));
+  const altre = voci.filter(v => v.nome !== 'marea')
     .sort((x, y) => y.peso * Math.abs(y.valore - 0.5) - x.peso * Math.abs(x.valore - 0.5))
-    .slice(0, 4)
-    .forEach(v => {
-      const riga = document.createElement('div');
-      riga.className = 'pesca-motivo' + (v.valore < 0.45 ? ' contro' : v.valore < 0.65 ? ' neutro' : '');
-      const testo = document.createElement('span');
-      testo.textContent = descriviFattore(v.nome, speciePesca, riferimento, spot);
-      const segno = document.createElement('span');
-      segno.className = 'pesca-segno';
-      segno.textContent = segnoFattore(v.valore);
-      riga.append(testo, segno);
-      elenco.append(riga);
-    });
+    .slice(0, 3);
+  [voci.find(v => v.nome === 'marea'), ...altre].forEach(v => {
+    const riga = document.createElement('div');
+    riga.className = 'pesca-motivo' + (v.valore < 0.45 ? ' contro' : v.valore < 0.65 ? ' neutro' : '');
+    const testo = document.createElement('span');
+    testo.textContent = descriviFattore(v.nome, speciePesca, riferimento, spot);
+    const punti = document.createElement('span');
+    punti.className = 'pesca-segno';
+    punti.textContent = String(Math.round(v.peso * v.valore)).padStart(2, '\u2007') + '/' + v.peso;
+    riga.append(testo, punti);
+    elenco.append(riga);
+  });
+  const totale = voci.reduce((t, v) => t + v.peso * v.valore, 0);
+  const somma = document.createElement('div');
+  somma.className = 'pesca-somma';
+  const molt = riferimento.fattori.molt[speciePesca];
+  somma.textContent = 'Tutte le ' + voci.length + ' condizioni: ' + Math.round(totale) + ' su 100' +
+    (molt !== 1 ? ', per ' + numIt(molt, molt < 0.2 ? 2 : 1) + (speciePesca === 'serra' ? ' (temperatura)' : molt > 1 ? ' (inverno)' : '') : '') +
+    ', riscalato ' + riferimento.grezzo[speciePesca] +
+    (riferimento.grezzo[speciePesca] !== riferimento.indice[speciePesca] ? ', ' + riferimento.indice[speciePesca] + ' con la media dell\u2019ora.' : '.');
+  elenco.append(somma);
   if (riferimento.fattori.info.mose) {
     const riga = document.createElement('div');
     riga.className = 'pesca-motivo contro';

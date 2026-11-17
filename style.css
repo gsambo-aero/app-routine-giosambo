@@ -1431,7 +1431,8 @@ main {
 .pesca-perche { display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
 .pesca-motivo { display: flex; justify-content: space-between; gap: 10px; }
 .pesca-motivo.neutro, .pesca-motivo.contro { color: var(--testo-secondario); }
-.pesca-segno { font-family: var(--mono); color: var(--accento); flex: none; }
+.pesca-segno { font-family: var(--mono); font-size: 13px; color: var(--accento); flex: none; }
+.pesca-somma { margin-top: 2px; font-size: 12px; color: var(--testo-terziario); }
 .pesca-motivo.neutro .pesca-segno { color: var(--testo-terziario); }
 .pesca-motivo.contro .pesca-segno { color: var(--pericolo); }
 .pesca-giorni { display: flex; flex-direction: column; gap: 7px; font-size: 14px; }
