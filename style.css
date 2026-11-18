@@ -1390,6 +1390,21 @@ main {
   border: 1px solid rgba(245, 158, 11, 0.35);
   border-radius: 12px;
 }
+.pesca-mose-link {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 10px 16px 0;
+  padding: 10px 13px;
+  font-size: 13.5px;
+  color: var(--testo-secondario);
+  text-decoration: none;
+  background: var(--superficie);
+  border: 1px solid var(--bordo);
+  border-radius: 12px;
+}
+.pesca-mose-link[hidden] { display: none; }
+.pesca-mose-link:active { opacity: 0.6; }
 .pesca-indici {
   display: grid;
   grid-template-columns: 1fr 1fr;

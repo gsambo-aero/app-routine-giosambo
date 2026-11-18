@@ -4572,6 +4572,8 @@ function mostraRisultatoPesca(calcolo) {
   const avviso = document.getElementById('pesca-mose');
   const prossime = spot.mose ? calcolo.ctx.mose.filter(c => c.fine >= Date.now() && c.inizio <= Date.now() + 48 * ORA_MS) : [];
   avviso.hidden = prossime.length === 0;
+  // Il MOSE non viene piu controllato in automatico: link alla pagina dell'Autorita per la Laguna
+  document.getElementById('pesca-mose-link').hidden = !spot.mose;
   if (prossime.length) {
     const c = prossime[0];
     const differenza = Math.round((new Date(giornoISO(new Date(c.inizio))) - new Date(giornoISO(new Date()))) / 864e5);
