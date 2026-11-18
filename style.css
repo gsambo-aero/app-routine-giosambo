@@ -1466,3 +1466,45 @@ main {
   cursor: pointer;
 }
 .diario-riga:first-child { border-top: none; }
+
+/* ---------- Sonno: quadrante del punteggio e obiettivo 8 h ---------- */
+.hero-riga {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.quadrante { width: 118px; flex: none; margin: 2px -4px -4px 0; }
+.quadrante-traccia { fill: none; stroke: var(--bordo); stroke-width: 9; stroke-linecap: round; }
+.quadrante-valore { fill: none; stroke: var(--accento); stroke-width: 9; stroke-linecap: round; }
+.quadrante-tacca { stroke: var(--testo-terziario); stroke-width: 1.5; }
+.quadrante-numero { font-family: var(--mono); font-size: 24px; fill: var(--testo); }
+.quadrante-testo { font-size: 9.5px; fill: var(--testo-secondario); }
+.grafico .barra.sopra { opacity: 0.7; }
+.grafico .obiettivo { stroke: var(--testo); stroke-width: 1.2; stroke-dasharray: 5 4; opacity: 0.7; }
+.grafico .obiettivo-testo { fill: var(--testo); }
+.grafico-obiettivo {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  color: var(--testo-secondario);
+  text-align: center;
+}
+
+/* ---------- Corsa: striscia delle zone di battito ---------- */
+.zone-striscia { margin-top: 14px; }
+.zone-barra {
+  display: flex;
+  gap: 2px;
+  height: 10px;
+  overflow: hidden;
+  border-radius: 5px;
+}
+.zone-legenda {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--testo-secondario);
+}
+.zone-legenda .prevalente { color: var(--testo); }

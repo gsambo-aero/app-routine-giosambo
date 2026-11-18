@@ -924,10 +924,11 @@ function elementoSvg(tipo, attributi) {
 }
 
 // Grafico a colonne (una sola serie): punti = [{ etichetta, valore, dettaglio }]
-function disegnaColonne(contenitore, info, punti, formattaAsse, testoIniziale) {
+function disegnaColonne(contenitore, info, punti, formattaAsse, testoIniziale, obiettivo) {
   const L = 340, A = 170, sx = 34, dx = 8, su = 10, giu = 24;
   const largh = L - sx - dx, alt = A - su - giu;
-  const massimo = Math.max(...punti.map(p => p.valore), 0);
+  // Con un obiettivo (es. 8 h di sonno) la scala lo comprende sempre
+  const massimo = Math.max(...punti.map(p => p.valore), obiettivo || 0, 0);
   // Fondo scala arrotondato (numero pari sotto 20, decina sopra) così le tacche sono numeri tondi
   const scala = massimo <= 0 ? 2 : massimo < 20 ? Math.ceil(massimo / 2) * 2 : Math.ceil(massimo / 10) * 10;
 
@@ -961,7 +962,7 @@ function disegnaColonne(contenitore, info, punti, formattaAsse, testoIniziale) {
         ' H' + (x + spessore - r) +
         ' Q' + (x + spessore) + ',' + (yBase - h) + ' ' + (x + spessore) + ',' + (yBase - h + r) +
         ' V' + yBase + ' Z';
-      const barra = elementoSvg('path', { class: 'barra', d });
+      const barra = elementoSvg('path', { class: 'barra' + (obiettivo && p.valore >= obiettivo ? ' sopra' : ''), d });
       barre.push(barra);
       svg.append(barra);
     } else {
@@ -981,6 +982,15 @@ function disegnaColonne(contenitore, info, punti, formattaAsse, testoIniziale) {
     });
     svg.append(bersaglio);
   });
+
+  // Linea tratteggiata dell'obiettivo, sopra le colonne
+  if (obiettivo) {
+    const y = su + alt - (obiettivo / scala) * alt;
+    svg.append(elementoSvg('line', { class: 'obiettivo', x1: sx, x2: L - dx, y1: y, y2: y }));
+    const testo = elementoSvg('text', { class: 'asse obiettivo-testo', x: sx - 6, y: y + 4, 'text-anchor': 'end' });
+    testo.textContent = formattaAsse(obiettivo);
+    svg.append(testo);
+  }
 
   contenitore.innerHTML = '';
   contenitore.append(svg);
@@ -1085,7 +1095,39 @@ function mostraUltimaCorsa(c) {
   ]);
 
   elCorsaUltima.append(testa, valore, strumenti);
+  const striscia = strisciaZone(c);
+  if (striscia) elCorsaUltima.append(striscia);
   elCorsaUltima.onclick = () => apriDettaglioCorsa(c);
+}
+
+// Barra unica con il tempo nelle zone di battito (stessi colori del dettaglio), percentuali sotto
+const COLORI_ZONE = ['#3b82f6', '#22c55e', '#eab308', '#f97316', '#ef4444', '#dc2626', '#b91c1c'];
+function strisciaZone(c) {
+  const zone = Array.isArray(c.zoneFcSec) ? c.zoneFcSec : [];
+  const totale = zone.reduce((t, s) => t + (s || 0), 0);
+  if (!totale) return null;
+  const prevalente = zone.indexOf(Math.max(...zone));
+  const box = document.createElement('div');
+  box.className = 'zone-striscia';
+  const barra = document.createElement('div');
+  barra.className = 'zone-barra';
+  const legenda = document.createElement('div');
+  legenda.className = 'zone-legenda';
+  zone.forEach((secondi, i) => {
+    if (!secondi) return;
+    const pezzo = document.createElement('div');
+    pezzo.style.flex = String(secondi);
+    pezzo.style.background = COLORI_ZONE[i] || COLORI_ZONE[COLORI_ZONE.length - 1];
+    barra.append(pezzo);
+    const quota = Math.round(secondi / totale * 100);
+    if (quota < 1) return;
+    const voce = document.createElement('span');
+    voce.textContent = 'Z' + (i + 1) + ' ' + quota + '%';
+    if (i === prevalente) voce.className = 'prevalente';
+    legenda.append(voce);
+  });
+  box.append(barra, legenda);
+  return box;
 }
 
 // I 6 numeri del riepilogo
@@ -1300,6 +1342,7 @@ mostraCorsa();
 
 const ETICHETTE_QUALITA = { 1: 'eccellente', 2: 'buona', 3: 'discreta', 4: 'scarsa' };
 const NOTTI_GRAFICO_SONNO = 14;
+const OBIETTIVO_SONNO_ORE = 8;
 const NOTTI_GRAFICI_RECUPERO = 30;
 
 const elSonnoVuoto = document.getElementById('sonno-vuoto');
@@ -1340,17 +1383,47 @@ function mostraUltimaNotte(n) {
   valore.className = 'hero-valore';
   scriviValore(valore, Math.floor(minuti / 60) + ' h ' + (minuti % 60) + ' min');
 
-  // Strumenti: punteggio (con la qualità sotto), poi i valori di recupero
-  const qualita = ETICHETTE_QUALITA[n.qualitaSonno];
+  // Durata a sinistra, quadrante del punteggio a destra
+  const riga = document.createElement('div');
+  riga.className = 'hero-riga';
+  riga.append(valore);
+  if (n.punteggioSonno) riga.append(quadrantePunteggio(n.punteggioSonno, ETICHETTE_QUALITA[n.qualitaSonno]));
+
+  // Strumenti: i valori di recupero
   const strumenti = creaStrumenti([
-    ['Punteggio', n.punteggioSonno ? String(Math.round(n.punteggioSonno)) : 'n/d', qualita],
     ['HRV', valoreOnd(n.hrv, ' ms')],
     ['FC riposo', valoreOnd(n.fcRiposo, ' bpm')],
     ['FC sonno', valoreOnd(n.fcMediaSonno, ' bpm')],
     ['SpO2', valoreOnd(n.spo2, '%')]
   ]);
 
-  elSonnoUltima.append(etichetta, valore, strumenti);
+  strumenti.classList.add('quattro'); // quattro valori su una riga
+  elSonnoUltima.append(etichetta, riga, strumenti);
+}
+
+// Arco da 0 a 100, come uno strumento analogico, con il numero e la qualita al centro
+function quadrantePunteggio(punteggio, qualita) {
+  const cx = 60, cy = 64, r = 48;
+  const p = Math.max(0, Math.min(100, punteggio)) / 100;
+  const punto = f => [cx - r * Math.cos(Math.PI * f), cy - r * Math.sin(Math.PI * f)];
+  const [x0, y0] = punto(0), [x1, y1] = punto(1), [xp, yp] = punto(p);
+  const svg = elementoSvg('svg', { viewBox: '0 0 120 76', class: 'quadrante', role: 'img', 'aria-label': 'Punteggio ' + Math.round(punteggio) });
+  svg.append(elementoSvg('path', { class: 'quadrante-traccia', d: 'M' + x0 + ',' + y0 + ' A' + r + ',' + r + ' 0 0 1 ' + x1 + ',' + y1 }));
+  if (p > 0) svg.append(elementoSvg('path', { class: 'quadrante-valore', d: 'M' + x0 + ',' + y0 + ' A' + r + ',' + r + ' 0 0 1 ' + xp.toFixed(1) + ',' + yp.toFixed(1) }));
+  [0.25, 0.5, 0.75].forEach(f => {
+    const [a, b] = [cx - (r + 8) * Math.cos(Math.PI * f), cy - (r + 8) * Math.sin(Math.PI * f)];
+    const [c, d] = [cx - (r + 13) * Math.cos(Math.PI * f), cy - (r + 13) * Math.sin(Math.PI * f)];
+    svg.append(elementoSvg('line', { class: 'quadrante-tacca', x1: a, y1: b, x2: c, y2: d }));
+  });
+  const numero = elementoSvg('text', { class: 'quadrante-numero', x: cx, y: cy - 6, 'text-anchor': 'middle' });
+  numero.textContent = Math.round(punteggio);
+  svg.append(numero);
+  if (qualita) {
+    const testo = elementoSvg('text', { class: 'quadrante-testo', x: cx, y: cy + 9, 'text-anchor': 'middle' });
+    testo.textContent = qualita;
+    svg.append(testo);
+  }
+  return svg;
 }
 
 // Le 4 medie degli ultimi 7 giorni
@@ -1394,8 +1467,14 @@ function mostraGraficoSonno(notti) {
     document.getElementById('info-sonno'),
     punti,
     v => (Math.round(v * 10) / 10).toString().replace('.', ',') + ' h',
-    'Tocca una colonna per i dettagli'
+    'Tocca una colonna per i dettagli',
+    OBIETTIVO_SONNO_ORE
   );
+  const conDati = punti.filter(p => p.valore > 0).length;
+  const sopra = punti.filter(p => p.valore >= OBIETTIVO_SONNO_ORE).length;
+  document.getElementById('sonno-obiettivo').textContent = conDati
+    ? 'Sopra le ' + OBIETTIVO_SONNO_ORE + ' h: ' + sopra + (sopra === 1 ? ' notte' : ' notti') + ' su ' + conDati
+    : '';
 }
 
 // Linea di un valore notturno (HRV o FC a riposo) nelle ultime notti che lo hanno
